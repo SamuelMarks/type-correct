@@ -37,7 +37,18 @@ PS: I'm aware that `size_type` isn't necessarily `size_t`… but using it here a
 
 ## Build instructions
 
-/TODO/, include CI also
+Install compiler suite, CMake, and LLVM (from `brew`, `apt`, or source), then run:
+
+    mkdir build && cd build
+    cmake .. \
+          -DCMAKE_BUILD_TYPE='Debug' \
+          -DCT_Clang_INSTALL_DIR='/usr/local/opt/llvm'
+
+(replace `/usr/local/opt/llvm` with your LLVM install dir)
+
+## Thanks
+
+Boilerplate from  https://github.com/banach-space/clang-tutor
 
 ---
 
