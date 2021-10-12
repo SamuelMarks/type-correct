@@ -2,6 +2,10 @@ type-correct
 ============
 
 [![CC0](https://img.shields.io/badge/license-CC0-%23373737)](LICENSE.md)
+[![x86-Darwin](https://github.com/SamuelMarks/type-correct/actions/workflows/x86-darwin.yml/badge.svg)](https://github.com/SamuelMarks/type-correct/actions/workflows/x86-darwin.yml)
+[![x86-Ubuntu-llvm-from-sources](https://github.com/SamuelMarks/type-correct/actions/workflows/x86-ubuntu-llvm-from-sources.yml/badge.svg)](https://github.com/SamuelMarks/type-correct/actions/workflows/x86-ubuntu-llvm-from-sources.yml)
+[![x86-Darwin-llvm-from-sources](https://github.com/SamuelMarks/type-correct/actions/workflows/x86-darwin-llvm-from-sources.yml/badge.svg)](https://github.com/SamuelMarks/type-correct/actions/workflows/x86-darwin-llvm-from-sources.yml)
+[![x86-Ubuntu](https://github.com/SamuelMarks/type-correct/actions/workflows/x86-ubuntu.yml/badge.svg)](https://github.com/SamuelMarks/type-correct/actions/workflows/x86-ubuntu.yml)
 
 [LLVM](https://llvm.org) [LibClang](https://clang.llvm.org/doxygen/group__CINDEX.html) / [LibTooling](https://clang.llvm.org/docs/LibTooling.html) solution to 'fix' types, rewriting inconsistent use of types to make them consistent.
 
