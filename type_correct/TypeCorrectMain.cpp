@@ -14,30 +14,27 @@
 //
 // License: CC0
 //==============================================================================
+#include <clang/Frontend/CompilerInstance.h>
+#include <clang/Frontend/FrontendPluginRegistry.h>
+#include <clang/Tooling/CommonOptionsParser.h>
+#include <clang/Tooling/Refactoring.h>
+#include <llvm/Support/CommandLine.h>
+
 #include "TypeCorrect.h"
-
-#include "clang/Frontend/CompilerInstance.h"
-#include "clang/Frontend/FrontendPluginRegistry.h"
-#include "clang/Tooling/CommonOptionsParser.h"
-#include "clang/Tooling/Refactoring.h"
-#include "llvm/Support/CommandLine.h"
-
-using namespace llvm;
-using namespace clang;
 
 //===----------------------------------------------------------------------===//
 // Command line options
 //===----------------------------------------------------------------------===//
-static cl::OptionCategory TypeCorrectCategory("ct-type-correct options");
+static llvm::cl::OptionCategory TypeCorrectCategory("ct-type-correct options");
 
 //===----------------------------------------------------------------------===//
 // PluginASTAction
 //===----------------------------------------------------------------------===//
-class TypeCorrectPluginAction : public PluginASTAction {
+class TypeCorrectPluginAction : public clang::PluginASTAction {
 public:
-    explicit TypeCorrectPluginAction(){};
+    explicit TypeCorrectPluginAction() = default;
     // Not used
-    bool ParseArgs(const CompilerInstance &CI,
+    bool ParseArgs(const clang::CompilerInstance &CI,
                    const std::vector<std::string> &args) override {
         return true;
     }
@@ -49,8 +46,8 @@ public:
     //       .write(llvm::outs());
     // }
 
-    std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,
-                                                   StringRef file) override {
+    std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(clang::CompilerInstance &CI,
+                                                          llvm::StringRef file) override {
         RewriterForTypeCorrect.setSourceMgr(CI.getSourceManager(),
                                              CI.getLangOpts());
         return std::make_unique<TypeCorrectASTConsumer>(
@@ -58,19 +55,19 @@ public:
     }
 
 private:
-    Rewriter RewriterForTypeCorrect;
+    clang::Rewriter RewriterForTypeCorrect;
 };
 
 //===----------------------------------------------------------------------===//
 // Main driver code.
 //===----------------------------------------------------------------------===//
 int main(int Argc, const char **Argv) {
-    Expected<tooling::CommonOptionsParser> eOptParser =
+    llvm::Expected<clang::tooling::CommonOptionsParser> eOptParser =
             clang::tooling::CommonOptionsParser::create(Argc, Argv,
                                                         TypeCorrectCategory);
     if (auto E = eOptParser.takeError()) {
-        errs() << "Problem constructing CommonOptionsParser "
-               << toString(std::move(E)) << '\n';
+        llvm::errs() << "Problem constructing CommonOptionsParser "
+                     << toString(std::move(E)) << '\n';
         return EXIT_FAILURE;
     }
     clang::tooling::RefactoringTool Tool(eOptParser->getCompilations(),

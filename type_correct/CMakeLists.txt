@@ -16,11 +16,22 @@ add_library(
         "${Source_Files}"
 )
 
-target_link_libraries("${LIBRARY_NAME}" PUBLIC "LLVMSupport" "clangTooling" "${PROJECT_LOWER_NAME}_compiler_flags")
+target_link_libraries(
+        "${LIBRARY_NAME}"
+        PUBLIC
+        "LLVMSupport"
+        "clangTooling"
+        "${PROJECT_LOWER_NAME}_compiler_flags"
+)
 
 add_executable("${EXEC_NAME}" "TypeCorrectMain.cpp")
 
 target_link_libraries("${EXEC_NAME}" PRIVATE "${LIBRARY_NAME}")
+
+# install rules
+include(GenerateExportHeader)
+set(_export_file "${CMAKE_CURRENT_SOURCE_DIR}/${LIBRARY_NAME}_export.h")
+generate_export_header("${LIBRARY_NAME}" EXPORT_FILE_NAME "${_export_file}")
 
 # setup the version numbering
 set_property(TARGET "${LIBRARY_NAME}" PROPERTY VERSION "1.0.0")
@@ -34,4 +45,4 @@ endif ()
 install(TARGETS ${installable_libs}
         DESTINATION "bin"
         EXPORT "${LIBRARY_NAME}Targets")
-install(FILES "${Header_Files}" DESTINATION "include")
+install(FILES "${Header_Files}" "${_export_file}" DESTINATION "include")
