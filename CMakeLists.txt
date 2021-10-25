@@ -67,8 +67,7 @@ message(STATUS "Using ClangConfig.cmake in: ${CT_Clang_INSTALL_DIR}")
 
 message("CLANG STATUS:
   Includes (clang)    ${CLANG_INCLUDE_DIRS}
-  Includes (llvm)     ${LLVM_INCLUDE_DIRS}"
-        )
+  Includes (llvm)     ${LLVM_INCLUDE_DIRS}")
 
 # Set the LLVM and Clang header and library paths
 include_directories(SYSTEM "${LLVM_INCLUDE_DIRS};${CLANG_INCLUDE_DIRS}")
@@ -86,9 +85,6 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # Compiler flags
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall\
-    -fdiagnostics-color=always")
-
 add_library("${PROJECT_LOWER_NAME}_compiler_flags" INTERFACE)
 target_compile_features("${PROJECT_LOWER_NAME}_compiler_flags" INTERFACE "cxx_std_${CMAKE_CXX_STANDARD}")
 
@@ -111,7 +107,7 @@ set(msvc "$<COMPILE_LANG_AND_ID:C,CXX,MSVC>")
 target_compile_options(
         "${PROJECT_LOWER_NAME}_compiler_flags"
         INTERFACE
-        "$<${gcc_like}:$<BUILD_INTERFACE:-Wall;-Wextra;-Wshadow;-Wformat=2;-Wunused>"
+        "$<${gcc_like}:$<BUILD_INTERFACE:-Wall;-Wextra;-Wshadow;-Wformat=2;-Wunused;-fdiagnostics-color=always>"
         "$<PLATFORM_ID:Darwin>:-undefined dynamic_lookup>"
         "$<${msvc}:$<BUILD_INTERFACE:-W3;-WX;-Zi;-permissive->>"
 )
@@ -144,4 +140,4 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/lib")
 # Doing this at the end so that all definitions and link/include paths are
 # available for the sub-projects.
 #===============================================================================
-add_subdirectory(type_correct)
+add_subdirectory("type_correct")

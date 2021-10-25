@@ -12,7 +12,7 @@
 //    (or any of b.cxx c.cc d.c d.h a.hpp b.hxx)
 //
 //
-// License: The Unlicense
+// License: CC0
 //==============================================================================
 #include "TypeCorrect.h"
 
