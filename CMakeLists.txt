@@ -73,6 +73,10 @@ message("CLANG STATUS:
 # Set the LLVM and Clang header and library paths
 include_directories(SYSTEM "${LLVM_INCLUDE_DIRS};${CLANG_INCLUDE_DIRS}")
 
+# CMake setup for LLVM (functions come into scope)
+include("${CMAKE_SOURCE_DIR}/cmake/AddLLVM.cmake")
+include("${CMAKE_SOURCE_DIR}/cmake/AddClang.cmake")
+
 #===============================================================================
 # 3. CLANG-TUTOR BUILD CONFIGURATION
 #===============================================================================
