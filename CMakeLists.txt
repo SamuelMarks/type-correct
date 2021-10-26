@@ -12,6 +12,9 @@ set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 # builds fine). For consistency, add it here too.
 set(CMAKE_VISIBILITY_INLINES_HIDDEN YES)
 
+# JSON file needed to run the LLVM libclang—and LibTooling—tool
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 #===============================================================================
 # 0. GET CLANG INSTALLATION DIR
 #===============================================================================

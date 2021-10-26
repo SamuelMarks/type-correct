@@ -27,3 +27,6 @@ bld/
 
 # Generated headers
 *_export.h
+
+# Compiler commands
+compile_commands.json

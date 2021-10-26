@@ -42,6 +42,7 @@ public:
                                                           llvm::StringRef file) override {
         RewriterForTypeCorrect.setSourceMgr(CI.getSourceManager(),
                                             CI.getLangOpts());
+
         return std::make_unique<TypeCorrectASTConsumer>(
                 RewriterForTypeCorrect);
     }

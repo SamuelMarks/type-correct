@@ -11,27 +11,27 @@
 
 #include <clang/AST/ASTConsumer.h>
 #include <clang/ASTMatchers/ASTMatchFinder.h>
+#include <clang/ASTMatchers/ASTMatchers.h>
 #include <clang/Rewrite/Core/Rewriter.h>
-#include <clang/Rewrite/Frontend/FixItRewriter.h>
-#include <clang/Tooling/CommonOptionsParser.h>
 
 #include "type_correct_export.h"
 
 //-----------------------------------------------------------------------------
-// ASTFinder callback
+// ASTMatcher callback
 //-----------------------------------------------------------------------------
 class TYPE_CORRECT_EXPORT TypeCorrectMatcher
         : public clang::ast_matchers::MatchFinder::MatchCallback {
 public:
-    explicit TypeCorrectMatcher(clang::Rewriter &RewriterForTypeCorrect)
-            : TypeCorrectRewriter(RewriterForTypeCorrect) {}
-
-    // void onEndOfTranslationUnit() override;
-
+    TypeCorrectMatcher(clang::Rewriter &LACRewriter) : LACRewriter(LACRewriter) {}
+    // Callback that's executed whenever the Matcher in TypeCorrectASTConsumer
+    // matches.
     void run(const clang::ast_matchers::MatchFinder::MatchResult &) override;
+    // Callback that's executed at the end of the translation unit
+    void onEndOfTranslationUnit() override;
 
 private:
-    clang::Rewriter TypeCorrectRewriter;
+    clang::Rewriter LACRewriter;
+    llvm::SmallSet<clang::FullSourceLoc, 8> EditedLocations;
 };
 
 //-----------------------------------------------------------------------------
@@ -39,15 +39,14 @@ private:
 //-----------------------------------------------------------------------------
 class TYPE_CORRECT_EXPORT TypeCorrectASTConsumer : public clang::ASTConsumer {
 public:
-    explicit TypeCorrectASTConsumer(clang::Rewriter &R) : TypeCorrectHandler(R) {}
-
+    TypeCorrectASTConsumer(clang::Rewriter &R);
     void HandleTranslationUnit(clang::ASTContext &Ctx) override {
         Finder.matchAST(Ctx);
     }
 
 private:
     clang::ast_matchers::MatchFinder Finder;
-    TypeCorrectMatcher TypeCorrectHandler;
+    TypeCorrectMatcher TCHandler;
 };
 
 #endif /* TYPE_CORRECT_H */
