@@ -12,13 +12,12 @@ jobs:
       - uses: actions/checkout@v1
       - name: Download Ninja
         run: |
-          git clone 'https://github.com/ninja-build/ninja'
+          git clone --depth=1 'https://github.com/ninja-build/ninja'
           pushd ninja
           ./configure.py --bootstrap
+          # Add Ninja to $PATH
+          echo "${PWD}/ninja" >> "$GITHUB_PATH"
           popd
-      - name: Add Ninja to $PATH
-        run: |
-          echo "${GITHUB_WORKSPACE}/ninja" >> "$GITHUB_PATH"
       - name: Clone llvm-project
         run: |
           git clone --depth '1' --single-branch --branch 'release/13.x' 'https://github.com/llvm/llvm-project'

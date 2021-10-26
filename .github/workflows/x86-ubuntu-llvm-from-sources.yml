@@ -12,13 +12,12 @@ jobs:
       - uses: actions/checkout@v1
       - name: Download Ninja
         run: |
-          git clone 'https://github.com/ninja-build/ninja'
+          git clone --depth=1 'https://github.com/ninja-build/ninja'
           pushd ninja
           ./configure.py --bootstrap
+          # Add Ninja to $PATH
+          echo "${PWD}/ninja" >> "$GITHUB_PATH"
           popd
-      - name: Add Ninja to $PATH
-        run: |
-          echo "${GITHUB_WORKSPACE}/ninja" >> "$GITHUB_PATH"
       - name: Clone llvm-project
         run: |
           git clone --depth '1' --single-branch --branch 'release/13.x' 'https://github.com/llvm/llvm-project'
@@ -31,7 +30,6 @@ jobs:
       - name: Build LLVM & Clang
         run: |
           cd 'llvm-project'
-          git checkout 'release/12.x'
           mkdir 'build' && cd "$_"
           cmake -G Ninja -D CMAKE_MAKE_PROGRAM=$GITHUB_WORKSPACE/ninja \
             -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_PROJECTS="clang;libcxx;libcxxabi" \

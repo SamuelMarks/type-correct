@@ -38,16 +38,15 @@ generate_export_header("${LIBRARY_NAME}" EXPORT_FILE_NAME "${_export_file}")
 
 # Test runner
 
-include(FetchContent)
-FetchContent_Declare(
-        googletest
-        # Specify the commit you depend on and update it regularly.
-        URL https://github.com/google/googletest/archive/609281088cfefc76f9d0ce82e1ff6c30cc3591e5.zip
-)
-# For Windows: Prevent overriding the parent project's compiler/linker settings
-set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(googletest)
-
+include(FindGTest)
+find_package(GTest QUIET)
+if (GTest_FOUND)
+    set(gtest_lib "GTest::gtest_main")
+else ()
+    include("../../cmake/modules/AcquireGoogleTest.cmake")
+    acquire_google_test()
+    set(gtest_lib "gtest_main")
+endif ()
 set(EXEC_NAME "test_${PROJECT_LOWER_NAME}")
 
 set(Source_Files "test_math.cpp")
@@ -63,7 +62,7 @@ set_target_properties(
         LINKER_LANGUAGE
         CXX
 )
-target_link_libraries("${EXEC_NAME}" PUBLIC "type_correct" "gtest_main")
+target_link_libraries("${EXEC_NAME}" PUBLIC "type_correct" "${gtest_lib}")
 
 add_test(NAME "${EXEC_NAME}" COMMAND "${EXEC_NAME}")
 
