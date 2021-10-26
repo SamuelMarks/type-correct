@@ -30,7 +30,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_PROJECTS="clang;libcxx;libcxxabi" \
             -DLLVM_TARGETS_TO_BUILD="X86" -DLLVM_OPTIMIZED_TABLEGEN=ON \
             ../llvm
-          ninja
+          cmake --build .
       - name: Build type-correct + run tests
         run: |
           mkdir 'build' && cd "$_"
