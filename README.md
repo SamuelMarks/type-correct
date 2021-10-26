@@ -37,7 +37,7 @@ int main() {
 }
 ```
 
-PS: I'm aware that [`size_type`](https://github.com/llvm/llvm-project/blob/d081d75dc8fc4b5173d6b15ffcf077d2e0d4143f/libcxx/include/vector#L321) isn't necessarily `size_t`—and that `decltype(vec)::size_type i` would be more correct—but using it here anyway. Just to reiterate: C++ is an afterthought, my main target is C.
+PS: I'm aware that [`size_type`](https://github.com/llvm/llvm-project/blob/d081d75dc8fc4b5173d6b15ffcf077d2e0d4143f/libcxx/include/vector#L321) isn't necessarily `size_t`—and that `decltype(vec)::size_type` would be more correct—but using it here anyway. Just to reiterate: C++ is an afterthought, my main target is C.
 
 ## Build instructions
 

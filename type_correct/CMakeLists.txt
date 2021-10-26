@@ -9,13 +9,13 @@ source_group("Source Files" FILES "${Source_Files}")
 
 source_group("CLI Source Files" FILES "TypeCorrectMain.cpp")
 
-add_library(
+add_library("${LIBRARY_NAME}" SHARED "${Header_Files}" "${Source_Files}")
+target_include_directories(
         "${LIBRARY_NAME}"
-        SHARED
-        "${Header_Files}"
-        "${Source_Files}"
+        PUBLIC
+        "$<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}>"
+        "$<INSTALL_INTERFACE:include>"
 )
-
 target_link_libraries(
         "${LIBRARY_NAME}"
         PUBLIC
@@ -24,9 +24,16 @@ target_link_libraries(
         "${PROJECT_LOWER_NAME}_compiler_flags"
 )
 
-add_executable("${EXEC_NAME}" "TypeCorrectMain.cpp")
+set(Cli_Header_Files "TypeCorrectMain.h")
+source_group("${EXEC_NAME} Header Files" FILES "${Header_Files}")
+
+set(Cli_Source_Files "TypeCorrectMain.cpp")
+source_group("${EXEC_NAME} Source Files" FILES "${Source_Files}")
+
+add_executable("${EXEC_NAME}" "${Cli_Header_Files}" "${Cli_Source_Files}")
 
 target_link_libraries("${EXEC_NAME}" PRIVATE "${LIBRARY_NAME}")
+set_target_properties("${LIBRARY_NAME}" PROPERTIES LINKER_LANGUAGE CXX)
 
 # install rules
 include(GenerateExportHeader)
@@ -45,4 +52,4 @@ endif ()
 install(TARGETS ${installable_libs}
         DESTINATION "bin"
         EXPORT "${LIBRARY_NAME}Targets")
-install(FILES "${Header_Files}" "${_export_file}" DESTINATION "include")
+install(FILES "${Header_Files}" "${Cli_Header_Files}" "${_export_file}" DESTINATION "include")

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.13.4)
 
-project(TypeCorrect VERSION 0.0.1 LANGUAGES CXX)
+project(TypeCorrect VERSION 0.0.1 LANGUAGES C CXX)
 string(TOLOWER "${PROJECT_NAME}" PROJECT_LOWER_NAME)
 string(REPLACE "-" "_" PROJECT_LOWER_NAME "${PROJECT_LOWER_NAME}")
 
@@ -22,10 +22,12 @@ set(CMAKE_VISIBILITY_INLINES_HIDDEN YES)
 #   https://cmake.org/cmake/help/latest/command/find_package.html
 # Use only _one_ of these variables.
 
-if(DEFINED Clang_ROOT)
+if (DEFINED Clang_ROOT)
     set(CT_CLANG_PACKAGE_DIR "${Clang_ROOT}/../../..")
-elseif(DEFINED Clang_DIR)
+elseif (DEFINED Clang_DIR)
     set(CT_CLANG_PACKAGE_DIR "${Clang_DIR}/../../..")
+elseif (DEFINED LLVM_CMAKE_DIR)
+    set(CT_CLANG_PACKAGE_DIR "${LLVM_CMAKE_DIR}/../../..")
 endif()
 mark_as_advanced(CT_CLANG_PACKAGE_DIR)
 
@@ -80,7 +82,9 @@ include_directories(SYSTEM "${LLVM_INCLUDE_DIRS};${CLANG_INCLUDE_DIRS}")
 # 3. CLANG-TUTOR BUILD CONFIGURATION
 #===============================================================================
 # Use the same C++ standard as LLVM does
-set(CMAKE_CXX_STANDARD 14 CACHE STRING "")
+set(CMAKE_CXX_STANDARD 20 CACHE STRING "")
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Build type
 if(NOT CMAKE_BUILD_TYPE)
@@ -135,3 +139,9 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/lib")
 # available for the sub-projects.
 #===============================================================================
 add_subdirectory("type_correct")
+
+option(BUILD_TESTS "Build tests" ON)
+if (BUILD_TESTS)
+    include(CTest)
+    add_subdirectory("type_correct/tests")
+endif (BUILD_TESTS)

@@ -18,7 +18,7 @@ jobs:
           popd
       - name: Add Ninja to $PATH
         run: |
-          echo "${GITHUB_WORKSPACE}/ninja" >> $GITHUB_PATH
+          echo "${GITHUB_WORKSPACE}/ninja" >> "$GITHUB_PATH"
       - name: Clone llvm-project
         run: |
           git clone --depth '1' --single-branch --branch 'release/13.x' 'https://github.com/llvm/llvm-project'
@@ -38,14 +38,10 @@ jobs:
             -DLLVM_TARGETS_TO_BUILD="X86" -DLLVM_OPTIMIZED_TABLEGEN=ON \
             ../llvm
           ninja
-      - name: Install lit
-        run: |
-          sudo apt-get install python3-setuptools
-          sudo pip3 install lit
       - name: Build type-correct + run tests
         run: |
-          mkdir build && cd build
+          mkdir 'build' && cd "$_"
           # Test with Clang_DIR
           cmake -DClang_DIR="$GITHUB_WORKSPACE/llvm-project/build/lib/cmake/clang/" ../
-          make -j2
-          lit test/
+          cmake --build .
+          ctest .

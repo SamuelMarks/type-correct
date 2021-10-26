@@ -14,11 +14,10 @@ jobs:
         run: |
           brew update
           brew install llvm
-          pip3 install lit
       - name: Build type-correct + run tests
         run: |
           cd "$GITHUB_WORKSPACE"
           mkdir 'build' && cd "$_"
           cmake -DCT_Clang_INSTALL_DIR="$(brew --prefix llvm)"/  ../
-          make -j2
-          lit test/
+          cmake --build .
+          ctest .

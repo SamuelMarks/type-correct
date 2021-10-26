@@ -24,21 +24,18 @@ jobs:
           git clone --depth '1' --single-branch --branch 'release/13.x' 'https://github.com/llvm/llvm-project'
       - name: Build LLVM & Clang
         run: |
-          cd llvm-project
-          git checkout release/13.x
-          mkdir build && cd build
+          cd 'llvm-project'
+          git checkout 'release/13.x'
+          mkdir 'build' && cd "$_"
           cmake -G Ninja -D CMAKE_MAKE_PROGRAM=$GITHUB_WORKSPACE/ninja \
             -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_PROJECTS="clang;libcxx;libcxxabi" \
             -DLLVM_TARGETS_TO_BUILD="X86" -DLLVM_OPTIMIZED_TABLEGEN=ON \
             -DDEFAULT_SYSROOT="$(xcrun --show-sdk-path)" \
             ../llvm
-          ninja
-      - name: Install lit
-        run: |
-          sudo pip3 install lit
+          cmake --build .
       - name: Build type-correct + run tests
         run: |
           mkdir 'build' && cd "$_"
           cmake -DCT_Clang_INSTALL_DIR="$GITHUB_WORKSPACE/llvm-project/build" ../
-          make -j2
-          lit -va 'test/'
+          cmake --build .
+          ctest .
