@@ -7,17 +7,12 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v1
-      - name: Download Ninja
+      - name: Install Ninja
         run: |
-          git clone --depth=1 'https://github.com/ninja-build/ninja'
-          pushd ninja
-          ./configure.py --bootstrap
-          # Add Ninja to $PATH
-          echo "${PWD}/ninja" >> "$GITHUB_PATH"
-          popd
+          sudo apt install -y ninja-build
       - name: Clone llvm-project
         run: |
           git clone --depth '1' --single-branch --branch 'release/13.x' 'https://github.com/llvm/llvm-project'
