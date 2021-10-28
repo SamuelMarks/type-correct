@@ -13,7 +13,7 @@ jobs:
       - name: Install Dependencies
         run: |
           brew update
-          brew install llvm
+          brew install llvm googletest
       - name: Build type-correct + run tests
         run: |
           pushd "$GITHUB_WORKSPACE"

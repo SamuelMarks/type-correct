@@ -26,9 +26,9 @@ jobs:
         run: |
           pushd 'llvm-project'
           mkdir 'build' && pushd "$_"
-          cmake -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_PROJECTS="clang;libcxx;libcxxabi" \
-            -DLLVM_TARGETS_TO_BUILD="X86" -DLLVM_OPTIMIZED_TABLEGEN=ON \
+          cmake -G 'Ninja' \
+            -DCMAKE_BUILD_TYPE='Release' -DLLVM_ENABLE_PROJECTS='clang;libcxx;libcxxabi' \
+            -DLLVM_TARGETS_TO_BUILD='X86' -DLLVM_OPTIMIZED_TABLEGEN='ON' \
             ../llvm
           cmake --build .
           popd

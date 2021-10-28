@@ -9,6 +9,34 @@ type-correct
 
 [LLVM](https://llvm.org) [LibClang](https://clang.llvm.org/doxygen/group__CINDEX.html) / [LibTooling](https://clang.llvm.org/docs/LibTooling.html) solution to 'fix' types, rewriting inconsistent use of types to make them consistent.
 
+## Automatic conversions
+```c
+#include <string.h>
+
+int main(void) {
+
+    /* FROM */
+    const int n = strlen("FOO");
+
+    /* TO */
+    const size_t n = strlen("FOO");
+
+    /* FROM */
+    for(int i=0; i<strlen("BAR"); i++) {}
+
+    /* TO */
+    for(size_t i=0; i<strlen("BAR"); i++) {}
+
+    /* FROM */
+    int f(long b) { return b; }
+    static const int c = f(5);
+
+    /* TO */
+    long f(long b) { return b; }
+    static const long c = f(5);
+}
+```
+
 ## Justification
 
 Often when building third-party libraries I get a bunch of warnings "comparison between signed and unsigned types is UB".
@@ -38,6 +66,29 @@ int main() {
 ```
 
 PS: I'm aware that [`size_type`](https://github.com/llvm/llvm-project/blob/d081d75dc8fc4b5173d6b15ffcf077d2e0d4143f/libcxx/include/vector#L321) isn't necessarily `size_t`—and that `decltype(vec)::size_type` would be more correct—but using it here anyway. Just to reiterate: C++ is an afterthought, my main target is C.
+
+## Integer promotion
+
+```c
+#include <limits.h>
+
+short sh=SHRT_MAX;
+int i=INT_MAX;
+long l=LONG_MAX;
+long long ll=LLONG_MAX; /* C99 */
+```
+
+Technically, these are all [defined and expected](https://en.cppreference.com/w/c/language/conversion) [on clang as a[`ImplicitCastExpr`](https://clang.llvm.org/doxygen/classclang_1_1ImplicitCastExpr.html)]:
+
+```c
+ll = l;
+l = i;
+i = sh;
+```
+
+(but the other direction, '[narrowing](https://releases.llvm.org/13.0.0/tools/clang/tools/extra/docs/clang-tidy/checks/cppcoreguidelines-narrowing-conversions.html)', is implementation defined)
+
+However, IMHO, people doing `int sl = strlen(s);` actually want `size_t`. This opinionated view is the assumption made for _type_correct_.
 
 ## Build instructions
 
