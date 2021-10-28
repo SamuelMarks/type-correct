@@ -7,8 +7,12 @@ set(All_Header_Files "")
 
 set(_built "")
 option(BUILD_MATH "Build math tests" OFF)
+
+# Build test libraries
 if (BUILD_MATH)
     foreach(suffix "b4" "l8")
+        set(LIBRARY_NAME "math_${suffix}")
+
         set(Header_Files "math_${suffix}.h")
         source_group("${LIBRARY_NAME} Header Files" FILES "${Header_Files}")
 
@@ -19,7 +23,12 @@ if (BUILD_MATH)
         list(APPEND _built "math_${suffix}")
 
         add_library("${LIBRARY_NAME}" SHARED "${Header_Files}" "${Source_Files}")
-
+        target_include_directories(
+                "${LIBRARY_NAME}"
+                PUBLIC
+                "$<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}>"
+                "$<INSTALL_INTERFACE:include>"
+        )
         target_link_libraries("${LIBRARY_NAME}" INTERFACE "${PROJECT_LOWER_NAME}_compiler_flags")
         set_target_properties("${LIBRARY_NAME}" PROPERTIES LINKER_LANGUAGE C)
 
@@ -32,11 +41,22 @@ if (BUILD_MATH)
         set_property(TARGET "${LIBRARY_NAME}" PROPERTY SOVERSION "1")
 
         # install rules prep
-        list(APPEND installable_libs "${LIBRARY_NAME}")
+        set(installable_libs "${LIBRARY_NAME}")
         list(APPEND All_Header_Files "${Header_Files}")
+
+        # install rules
+        if (TARGET "${DEPENDANT_LIBRARY}")
+            list(APPEND installable_libs "${DEPENDANT_LIBRARY}")
+        endif ()
+        install(TARGETS ${installable_libs}
+                DESTINATION "lib"
+                EXPORT "${LIBRARY_NAME}Targets")
+
+        install(FILES "${Header_Files}" "${_export_file}" DESTINATION "include")
     endforeach ()
 endif(BUILD_MATH)
-# Test runner
+
+# Get test runner dependency
 
 include(FindGTest)
 find_package(GTest QUIET)
@@ -48,6 +68,7 @@ else ()
     set(gtest_lib "gtest_main")
 endif ()
 
+# Build test executables, `add_test` them
 foreach (name ${_built} "test_type_correct")
     string(REPLACE "test_" "" _lib "${name}")
     set(_libs "${_lib}" "${gtest_lib}")
@@ -68,26 +89,16 @@ foreach (name ${_built} "test_type_correct")
             LINKER_LANGUAGE
             CXX
     )
-    message("target_link_libraries ${EXEC_NAME} PUBLIC ${_libs}")
+    message("target_link_libraries\(\"${EXEC_NAME}\" PUBLIC \"${_libs}\"\)")
     target_link_libraries("${EXEC_NAME}" PUBLIC "${_libs}")
 
     add_test(NAME "${EXEC_NAME}" COMMAND "${EXEC_NAME}")
 
-    list(APPEND installable_libs "${EXEC_NAME}")
+    set(installable_libs "${EXEC_NAME}")
+    if (TARGET "${DEPENDANT_LIBRARY}")
+        list(APPEND installable_libs "${DEPENDANT_LIBRARY}")
+    endif ()
     install(TARGETS ${installable_libs}
             DESTINATION "bin"
             EXPORT "${EXEC_NAME}Targets")
 endforeach()
-
-# install rules
-
-if (TARGET "${DEPENDANT_LIBRARY}")
-    list(APPEND installable_libs "${DEPENDANT_LIBRARY}")
-endif ()
-install(TARGETS ${installable_libs}
-        DESTINATION "lib"
-        EXPORT "${_LIBRARY_NAME}Targets")
-
-if (BUILD_MATH)
-    install(FILES "${All_Header_Files}" "${_export_file}" DESTINATION "include")
-endif (BUILD_MATH)

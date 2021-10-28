@@ -24,17 +24,20 @@ jobs:
           sudo ln -s '/usr/bin/x86_64-linux-gnu-ld.gold' '/usr/bin/ld'
       - name: Build LLVM & Clang
         run: |
-          cd 'llvm-project'
-          mkdir 'build' && cd "$_"
+          pushd 'llvm-project'
+          mkdir 'build' && pushd "$_"
           cmake -G Ninja \
             -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_PROJECTS="clang;libcxx;libcxxabi" \
             -DLLVM_TARGETS_TO_BUILD="X86" -DLLVM_OPTIMIZED_TABLEGEN=ON \
             ../llvm
           cmake --build .
+          popd
+          popd
       - name: Build type-correct + run tests
         run: |
-          mkdir 'build' && cd "$_"
+          mkdir 'build' && pushd "$_"
           # Test with Clang_DIR
           cmake -DClang_DIR="$GITHUB_WORKSPACE/llvm-project/build/lib/cmake/clang/" ../
           cmake --build .
           ctest .
+          popd

@@ -16,8 +16,10 @@ jobs:
           brew install llvm
       - name: Build type-correct + run tests
         run: |
-          cd "$GITHUB_WORKSPACE"
-          mkdir 'build' && cd "$_"
+          pushd "$GITHUB_WORKSPACE"
+          mkdir 'build' && pushd "$_"
           cmake -DCT_Clang_INSTALL_DIR="$(brew --prefix llvm)"/  ../
           cmake --build .
           ctest .
+          popd
+          popd

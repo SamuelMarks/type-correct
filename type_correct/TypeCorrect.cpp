@@ -48,6 +48,7 @@ void TypeCorrectMatcher::run(const clang::ast_matchers::MatchFinder::MatchResult
 
     // Get the arguments
     clang::Expr const *const *Args = TheCall->getArgs();
+    clang::QualType const Returns = TheCall->getCallReturnType(*Ctx);
     size_t NumArgs = TheCall->getNumArgs();
 
     // If this is a call to an overloaded operator (e.g. `+`), then the first
@@ -96,7 +97,7 @@ void TypeCorrectMatcher::onEndOfTranslationUnit() {
 }
 
 TypeCorrectASTConsumer::TypeCorrectASTConsumer(clang::Rewriter &R) : TCHandler(R) {
-    clang::ast_matchers::StatementMatcher CallSiteMatcher =
+    const clang::ast_matchers::StatementMatcher CallSiteMatcher =
             clang::ast_matchers::callExpr(
                     clang::ast_matchers::allOf(clang::ast_matchers::callee(clang::ast_matchers::functionDecl(clang::ast_matchers::unless(clang::ast_matchers::isVariadic())).bind("callee")),
                           clang::ast_matchers::unless(clang::ast_matchers::cxxMemberCallExpr(
