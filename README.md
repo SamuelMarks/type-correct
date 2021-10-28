@@ -78,7 +78,7 @@ long l=LONG_MAX;
 long long ll=LLONG_MAX; /* C99 */
 ```
 
-Technically, these are all [defined and expected](https://en.cppreference.com/w/c/language/conversion) [on clang as a[`ImplicitCastExpr`](https://clang.llvm.org/doxygen/classclang_1_1ImplicitCastExpr.html)]:
+Technically, these are all [defined and expected](https://en.cppreference.com/w/c/language/conversion) [on clang as an [`ImplicitCastExpr`](https://clang.llvm.org/doxygen/classclang_1_1ImplicitCastExpr.html)]:
 
 ```c
 ll = l;
@@ -88,7 +88,10 @@ i = sh;
 
 (but the other direction, '[narrowing](https://releases.llvm.org/13.0.0/tools/clang/tools/extra/docs/clang-tidy/checks/cppcoreguidelines-narrowing-conversions.html)', is implementation defined)
 
-However, IMHO, people doing `int sl = strlen(s);` actually want `size_t`. This opinionated view is the assumption made for _type_correct_.
+However, IMHO, people doing `int sl = strlen(s);` actually want `size_t`.
+This opinionated view is the assumption made for _type_correct_.
+
+But… attempts are made to be reasonably conservative. See [`type_correct/tests/test_type_correct.cpp`](type_correct/tests/test_type_correct.cpp) for false positive and true positive checks.
 
 ## Build instructions
 

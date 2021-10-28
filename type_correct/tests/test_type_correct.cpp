@@ -47,3 +47,32 @@ GTEST_TEST(runToolOnCode, FunctionReturnAndAssignementType) {
     llvm::outs() << "\noutput: \"" << output /*output.substr(output.rfind('\n')) */
                  << "\"\noutput.ends_with(want): " << (output.ends_with(want) ? "true" : "false");
 }
+
+/* // Annoying edge cases to explicitly ignore to reduce false positives
+
+```c
+// Don't modify struct properties, because that could impact too much (and might be outside project, e.g., in unistd)
+struct S {
+   int n;
+} sN;
+
+sN.n = strlen("Foo");
+```
+
+```c++
+// Ignore when there's an explicit cast
+int n = (int)strlen("Foo");
+int cppn = static_cast<int>(strlen("Foo"));
+```
+
+```c
+// Ignore when there's a lot going on
+int n;
+n = some_int_returning_func();
+n = strlen("Foo");
+
+int nn;
+nn = some_size_t_returning_func()
+nn += strlen("Foo");
+```
+*/
