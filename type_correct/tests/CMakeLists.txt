@@ -59,7 +59,7 @@ endif(BUILD_MATH)
 # Get test runner dependency
 
 include(FindGTest)
-find_package(GTest QUIET)
+find_package(GTest QUIET COMPONENTS "gtest_main")
 if (GTest_FOUND)
     set(gtest_lib "GTest::gtest_main")
 else ()
