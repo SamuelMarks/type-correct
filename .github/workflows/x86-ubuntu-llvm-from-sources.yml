@@ -46,7 +46,7 @@ jobs:
             -DLLVM_ENABLE_PROJECTS='clang;libcxx;libcxxabi' \
             -DLLVM_TARGETS_TO_BUILD='X86' \
             -DLLVM_OPTIMIZED_TABLEGEN='ON' \
-            -DLLVM_INCLUDE_TESTS='OFF'
+            -DLLVM_INCLUDE_TESTS='OFF' \
             ../llvm
           cmake --build .
           popd
