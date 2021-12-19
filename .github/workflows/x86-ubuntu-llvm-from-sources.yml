@@ -57,5 +57,5 @@ jobs:
           # Test with Clang_DIR
           cmake -DClang_DIR="$GITHUB_WORKSPACE/llvm-project/build/lib/cmake/clang/" ../
           cmake --build .
-          ctest .
+          ctest -CRelease .
           popd
