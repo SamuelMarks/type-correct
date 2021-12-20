@@ -58,4 +58,5 @@ jobs:
           cmake -DClang_DIR="$GITHUB_WORKSPACE/llvm-project/build/lib/cmake/clang/" ../
           cmake --build .
           ctest -CRelease .
+          [ -f "Testing/Temporary/LastTest.log" ] && Testing/Temporary/LastTest.log
           popd
