@@ -21,7 +21,8 @@ jobs:
           sudo apt update
           sudo apt install -y \
               gcc-11 \
-              g++-11
+              g++-11 \
+              libc-dev
           sudo update-alternatives \
               --install /usr/bin/gcc gcc /usr/bin/gcc-11 110 \
               --slave /usr/bin/g++ g++ /usr/bin/g++-11 \
