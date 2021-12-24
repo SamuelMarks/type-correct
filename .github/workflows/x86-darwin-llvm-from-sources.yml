@@ -13,11 +13,23 @@ jobs:
       - name: Install Ninja and Google Test
         run: |
           brew install ninja googletest
+      - name: Cache llvm-project
+        id: cache-llvm-project
+        uses: actions/cache@v2
+        with:
+          path: llvm-project
+          key: ${{ runner.os }}-llvm-project-27a0718ad0a4a566720fc11a080a47752725e747
       - name: Clone llvm-project
+        if: steps.cache-llvm-project.outputs.cache-hit != 'true'
         run: |
-          git clone --depth '1' --single-branch --branch 'release/13.x' \
-              'https://github.com/llvm/llvm-project'
+          mkdir 'llvm-project' && pushd "$_"
+          git init
+          git remote add origin 'https://github.com/llvm/llvm-project'
+          git fetch --depth 1 origin '27a0718ad0a4a566720fc11a080a47752725e747'
+          git checkout FETCH_HEAD
+          popd
       - name: Build LLVM & Clang
+        if: steps.cache-llvm-project.outputs.cache-hit != 'true'
         run: |
           pushd "$GITHUB_WORKSPACE"
           pushd 'llvm-project'

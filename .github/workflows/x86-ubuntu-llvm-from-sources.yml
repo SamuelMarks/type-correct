@@ -28,10 +28,22 @@ jobs:
               --slave '/usr/bin/g++' g++ '/usr/bin/g++-11' \
               --slave '/usr/bin/gcov' gcov '/usr/bin/gcov-11'
           gcc --version ; g++ --version ; cmake --version ; '/usr/bin/ld' --version ; '/usr/bin/x86_64-linux-gnu-ld.gold' --version
+          find '/' -type f -name 'stddef.h' 2>'/dev/null'
+      - name: Cache llvm-project
+        id: cache-llvm-project
+        uses: actions/cache@v2
+        with:
+          path: llvm-project
+          key: ${{ runner.os }}-llvm-project-27a0718ad0a4a566720fc11a080a47752725e747
       - name: Clone llvm-project
+        if: steps.cache-llvm-project.outputs.cache-hit != 'true'
         run: |
-          git clone --depth '1' --single-branch --branch 'release/13.x' \
-              'https://github.com/llvm/llvm-project'
+          mkdir 'llvm-project' && pushd "$_"
+          git init
+          git remote add origin 'https://github.com/llvm/llvm-project'
+          git fetch --depth 1 origin '27a0718ad0a4a566720fc11a080a47752725e747'
+          git checkout FETCH_HEAD
+          popd
       - name: Make ld.gold the default linker
         run: |
           # This a quick and easy hack. Not something I would use on my
@@ -39,6 +51,7 @@ jobs:
           sudo rm '/usr/bin/ld'
           sudo ln -s '/usr/bin/x86_64-linux-gnu-ld.gold' '/usr/bin/ld'
       - name: Build LLVM & Clang
+        if: steps.cache-llvm-project.outputs.cache-hit != 'true'
         run: |
           pushd 'llvm-project'
           mkdir 'build' && pushd "$_"
@@ -54,12 +67,12 @@ jobs:
           popd
       - name: Build type-correct + run tests
         run: |
+          export C_INCLUDE_PATH='/usr/include/linux'
+          # Or '/usr/lib/llvm-12/lib/clang/12.0.0/include'
+          # …or '/usr/lib/gcc/x86_64-linux-gnu/11/include'?
           mkdir 'build' && pushd "$_"
           # Test with Clang_DIR
           cmake -DClang_DIR="$GITHUB_WORKSPACE/llvm-project/build/lib/cmake/clang/" ../
           cmake --build .
-          export C_INCLUDE_PATH="/usr/include/linux"
-          # Or "/usr/lib/llvm-12/lib/clang/12.0.0/include"
-          # …or "/usr/lib/gcc/x86_64-linux-gnu/11/include"?
           ctest -VV -CRelease . || ( t='Testing/Temporary/LastTest.log' ; [ -f "$t" ] && cat "$t" && exit 1 ; )
           popd
