@@ -33,7 +33,7 @@ void TypeCorrectMatcher::run(const clang::ast_matchers::MatchFinder::MatchResult
     clang::ASTContext *Ctx = Result.Context;
 
     // Callee and caller are accessed via .bind("callee") and .bind("caller"),
-    // respecitvely, from the ASTMatcher
+    // respectively, from the ASTMatcher
     const clang::FunctionDecl *CalleeDecl =
             Result.Nodes.getNodeAs<clang::FunctionDecl>("callee");
     const clang::CallExpr *TheCall = Result.Nodes.getNodeAs<clang::CallExpr>("caller");
