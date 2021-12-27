@@ -68,8 +68,8 @@ jobs:
           popd
       - name: Build type-correct + run tests
         run: |
-          export C_INCLUDE_PATH='/usr/lib/gcc/x86_64-linux-gnu/11/include'
-          # Or '/usr/lib/llvm-12/lib/clang/12.0.0/include'
+          export C_INCLUDE_PATH='/usr/lib/llvm-12/lib/clang/12.0.0/include'
+          # Or '/usr/lib/gcc/x86_64-linux-gnu/11/include'
           # …or '/usr/include/linux'?
           mkdir 'build' && pushd "$_"
           # Test with Clang_DIR
