@@ -72,10 +72,11 @@ jobs:
           # Or '/usr/lib/gcc/x86_64-linux-gnu/11/include'
           # …or '/usr/include/linux'?
           mkdir 'build' && pushd "$_"
+          cmake --system-information
           # Test with Clang_DIR
           cmake \
              -DClang_DIR="$GITHUB_WORKSPACE/llvm-project/build/lib/cmake/clang/" \
-             -DCMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES='/usr/lib/llvm-12/lib/clang/12.0.0/include' \
+             -DCMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES='/usr/include/linux' \
              ../
           cmake --build .
           ctest -VV -CRelease . || ( test -f 'Testing/Temporary/LastTest.log' && cat "$_" && exit 1 )
