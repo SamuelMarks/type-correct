@@ -76,7 +76,7 @@ jobs:
           # Test with Clang_DIR
           cmake \
              -DClang_DIR="$GITHUB_WORKSPACE/llvm-project/build/lib/cmake/clang/" \
-             -DCMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES='/usr/include/linux' \
+             -DCMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES='/usr/lib/gcc/x86_64-linux-gnu/11/include' \
              ../
           cmake --build .
           ctest -VV -CRelease . || ( test -f 'Testing/Temporary/LastTest.log' && cat "$_" && exit 1 )
