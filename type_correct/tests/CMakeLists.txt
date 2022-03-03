@@ -27,32 +27,19 @@ if (BUILD_MATH)
                 "${LIBRARY_NAME}"
                 PUBLIC
                 "$<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}>"
+                "$<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>"
                 "$<INSTALL_INTERFACE:include>"
         )
         target_link_libraries("${LIBRARY_NAME}" INTERFACE "${PROJECT_LOWER_NAME}_compiler_flags")
         set_target_properties("${LIBRARY_NAME}" PROPERTIES LINKER_LANGUAGE C)
 
         include(GenerateExportHeader)
-        set(_export_file "${CMAKE_CURRENT_SOURCE_DIR}/${LIBRARY_NAME}_export.h")
+        set(_export_file "${CMAKE_CURRENT_BINARY_DIR}/${LIBRARY_NAME}_export.h")
         generate_export_header("${LIBRARY_NAME}" EXPORT_FILE_NAME "${_export_file}")
 
         # setup the version numbering
         set_property(TARGET "${LIBRARY_NAME}" PROPERTY VERSION "1.0.0")
         set_property(TARGET "${LIBRARY_NAME}" PROPERTY SOVERSION "1")
-
-        # install rules prep
-        set(installable_libs "${LIBRARY_NAME}")
-        list(APPEND All_Header_Files "${Header_Files}")
-
-        # install rules
-        if (TARGET "${DEPENDANT_LIBRARY}")
-            list(APPEND installable_libs "${DEPENDANT_LIBRARY}")
-        endif ()
-        install(TARGETS ${installable_libs}
-                DESTINATION "lib"
-                EXPORT "${LIBRARY_NAME}Targets")
-
-        install(FILES "${Header_Files}" "${_export_file}" DESTINATION "include")
     endforeach ()
 endif(BUILD_MATH)
 
@@ -63,11 +50,12 @@ find_package(GTest QUIET COMPONENTS "gtest_main")
 if (GTest_FOUND)
     set(gtest_lib "GTest::gtest_main")
 else ()
-    include("../../cmake/modules/AcquireGoogleTest.cmake")
+    include("${CMAKE_SOURCE_DIR}/cmake/modules/AcquireGoogleTest.cmake")
     acquire_google_test()
     set(gtest_lib "gtest_main")
 endif ()
 
+include(GoogleTest)
 # Build test executables, `add_test` them
 foreach (name ${_built} "test_type_correct")
     string(REPLACE "test_" "" _lib "${name}")
@@ -93,12 +81,5 @@ foreach (name ${_built} "test_type_correct")
     target_link_libraries("${EXEC_NAME}" PUBLIC "${_libs}")
 
     add_test(NAME "${EXEC_NAME}" COMMAND "${EXEC_NAME}")
-
-    set(installable_libs "${EXEC_NAME}")
-    if (TARGET "${DEPENDANT_LIBRARY}")
-        list(APPEND installable_libs "${DEPENDANT_LIBRARY}")
-    endif ()
-    install(TARGETS ${installable_libs}
-            DESTINATION "bin"
-            EXPORT "${EXEC_NAME}Targets")
+    gtest_discover_tests("${EXEC_NAME}")
 endforeach()
