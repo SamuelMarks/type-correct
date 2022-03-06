@@ -5,7 +5,7 @@ on:
   pull_request:
     branches: [ master ]
 
-# 9468a0f953858c696fc5a454420ef4c96e35637c is release/13.x @ 22/12/2021
+# 75e33f71c2dae584b13a7d1186ae0a038ba98838 is release/13.x @ 20/01/2022
 
 jobs:
   build:
@@ -22,29 +22,27 @@ jobs:
           sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
           sudo apt-get update
           sudo apt-get install -y \
-              gcc-11 \
-              g++-11 \
+              gcc-12 \
+              g++-12 \
               libc-dev
           sudo update-alternatives \
-              --install '/usr/bin/gcc' gcc '/usr/bin/gcc-11' 110 \
-              --slave '/usr/bin/g++' g++ '/usr/bin/g++-11' \
-              --slave '/usr/bin/gcov' gcov '/usr/bin/gcov-11'
+              --install '/usr/bin/gcc' gcc '/usr/bin/gcc-12' 110 \
+              --slave '/usr/bin/g++' g++ '/usr/bin/g++-12' \
+              --slave '/usr/bin/gcov' gcov '/usr/bin/gcov-12'
           gcc --version ; g++ --version ; cmake --version ; '/usr/bin/ld' --version ; '/usr/bin/x86_64-linux-gnu-ld.gold' --version
       - name: Cache llvm-project
         id: cache-llvm-project
         uses: actions/cache@v2
         with:
           path: llvm-project
-          key: ${{ runner.os }}-llvm-project-9468a0f953858c696fc5a454420ef4c96e35637c
+          key: ${{ runner.os }}-llvm-project-75e33f71c2dae584b13a7d1186ae0a038ba98838
       - name: Clone llvm-project
+        uses: actions/checkout@v2
+        with:
+          repository: "llvm/llvm-project"
+          ref: 75e33f71c2dae584b13a7d1186ae0a038ba98838
+          path: llvm-project
         if: steps.cache-llvm-project.outputs.cache-hit != 'true'
-        run: |
-          mkdir 'llvm-project' && pushd "$_"
-          git init
-          git remote add origin 'https://github.com/llvm/llvm-project'
-          git fetch --depth 1 origin '9468a0f953858c696fc5a454420ef4c96e35637c'
-          git checkout FETCH_HEAD
-          popd
       - name: Make ld.gold the default linker
         run: |
           # This a quick and easy hack. Not something I would use on my
@@ -69,14 +67,14 @@ jobs:
       - name: Build type-correct + run tests
         run: |
           export C_INCLUDE_PATH='/usr/lib/llvm-12/lib/clang/12.0.0/include'
-          # Or '/usr/lib/gcc/x86_64-linux-gnu/11/include'
+          # Or '/usr/lib/gcc/x86_64-linux-gnu/12/include'
           # …or '/usr/include/linux'?
           mkdir 'build' && pushd "$_"
           cmake --system-information
           # Test with Clang_DIR
           cmake \
              -DClang_DIR="$GITHUB_WORKSPACE/llvm-project/build/lib/cmake/clang/" \
-             -DCMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES='/usr/lib/gcc/x86_64-linux-gnu/11/include' \
+             -DCMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES='/usr/lib/gcc/x86_64-linux-gnu/12/include' \
              ../
           cmake --build .
           ctest -VV -CRelease . || ( test -f 'Testing/Temporary/LastTest.log' && cat "$_" && exit 1 )

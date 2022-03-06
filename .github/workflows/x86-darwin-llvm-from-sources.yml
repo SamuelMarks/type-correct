@@ -5,7 +5,7 @@ on:
   pull_request:
     branches: [ master ]
 
-# 9468a0f953858c696fc5a454420ef4c96e35637c is release/13.x @ 22/12/2021
+# 75e33f71c2dae584b13a7d1186ae0a038ba98838 is release/13.x @ 20/01/2022
 
 jobs:
   build:
@@ -20,16 +20,14 @@ jobs:
         uses: actions/cache@v2
         with:
           path: llvm-project
-          key: ${{ runner.os }}-llvm-project-9468a0f953858c696fc5a454420ef4c96e35637c
+          key: ${{ runner.os }}-llvm-project-75e33f71c2dae584b13a7d1186ae0a038ba98838
       - name: Clone llvm-project
+        uses: actions/checkout@v2
+        with:
+          repository: "llvm/llvm-project"
+          ref: 75e33f71c2dae584b13a7d1186ae0a038ba98838
+          path: llvm-project
         if: steps.cache-llvm-project.outputs.cache-hit != 'true'
-        run: |
-          mkdir 'llvm-project' && pushd "$_"
-          git init
-          git remote add origin 'https://github.com/llvm/llvm-project'
-          git fetch --depth 1 origin '9468a0f953858c696fc5a454420ef4c96e35637c'
-          git checkout FETCH_HEAD
-          popd
       - name: Build LLVM & Clang
         if: steps.cache-llvm-project.outputs.cache-hit != 'true'
         run: |
