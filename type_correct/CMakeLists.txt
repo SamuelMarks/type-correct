@@ -27,7 +27,7 @@ target_link_libraries(
 target_link_libraries(
         "${LIBRARY_NAME}"
         INTERFACE
-        "${PROJECT_LOWER_NAME}_compiler_flags"
+        "${PROJECT_LOWER_NAME}_cxx_compiler_flags"
 )
 
 #######
@@ -62,7 +62,7 @@ set_property(TARGET "${LIBRARY_NAME}" PROPERTY VERSION "1.0.0")
 set_property(TARGET "${LIBRARY_NAME}" PROPERTY SOVERSION "1")
 
 set(installable_libs # "${EXEC_NAME}"
-        "${LIBRARY_NAME}" "${PROJECT_LOWER_NAME}_compiler_flags")
+        "${LIBRARY_NAME}" "${PROJECT_LOWER_NAME}_cxx_compiler_flags")
 if (TARGET "${DEPENDANT_LIBRARY}")
     list(APPEND installable_libs "${DEPENDANT_LIBRARY}")
 endif ()

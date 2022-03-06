@@ -84,6 +84,7 @@ include_directories(SYSTEM "${LLVM_INCLUDE_DIRS};${CLANG_INCLUDE_DIRS}")
 #===============================================================================
 # 3. CLANG-TUTOR BUILD CONFIGURATION
 #===============================================================================
+set(CMAKE_C_STANDARD 90 CACHE STRING "")
 # Use the same C++ standard as LLVM does
 set(CMAKE_CXX_STANDARD 20 CACHE STRING "")
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -96,46 +97,49 @@ if (NOT CMAKE_BUILD_TYPE)
 endif (NOT CMAKE_BUILD_TYPE)
 
 # Compiler flags
-add_library("${PROJECT_LOWER_NAME}_compiler_flags" INTERFACE)
-target_compile_features("${PROJECT_LOWER_NAME}_compiler_flags" INTERFACE "cxx_std_${CMAKE_CXX_STANDARD}")
+foreach (lang "c" "cxx")
+    string(TOUPPER "${lang}" LANG)
+    add_library("${PROJECT_LOWER_NAME}_${lang}_compiler_flags" INTERFACE)
+    target_compile_features(
+            "${PROJECT_LOWER_NAME}_${lang}_compiler_flags"
+            INTERFACE
+            "${lang}_std_${CMAKE_${LANG}_STANDARD}"
+    )
 
-set(gcc_like "$<COMPILE_LANG_AND_ID:C,CXX,ARMClang,AppleClang,Clang,GNU,LCC>")
-set(clang_like "$<COMPILE_LANG_AND_ID:C,CXX,ARMClang,AppleClang,Clang,GNU,LCC>")
-set(msvc "$<COMPILE_LANG_AND_ID:C,CXX,MSVC>")
-# -g -fsanitize=address -fno-omit-frame-pointer
-# On Darwin (unlike on Linux), undefined symbols in shared objects are not
-# allowed at the end of the link-edit. The plugins defined here:
-#  - _are_ shared objects
-#  - reference symbols from LLVM shared libraries, i.e. symbols which are
-#    undefined until those shared objects are loaded in memory (and hence
-#    _undefined_ during static linking)
-# The build will fail with errors like this:
-#    "Undefined symbols for architecture x86_64"
-# with various LLVM symbols being undefined. Since those symbols are later
-# loaded and resolved at runtime, these errors are false positives.
-# This behaviour can be modified via the '-undefined' OS X linker flag as
-# follows.
+    set(gcc_like "$<COMPILE_LANG_AND_ID:C,CXX,ARMClang,AppleClang,Clang,GNU,LCC>")
+    set(clang_like "$<COMPILE_LANG_AND_ID:C,CXX,ARMClang,AppleClang,Clang,GNU,LCC>")
+    set(msvc "$<COMPILE_LANG_AND_ID:C,CXX,MSVC>")
+    # -g -fsanitize=address -fno-omit-frame-pointer
+    # On Darwin (unlike on Linux), undefined symbols in shared objects are not
+    # allowed at the end of the link-edit. The plugins defined here:
+    #  - _are_ shared objects
+    #  - reference symbols from LLVM shared libraries, i.e. symbols which are
+    #    undefined until those shared objects are loaded in memory (and hence
+    #    _undefined_ during static linking)
+    # The build will fail with errors like this:
+    #    "Undefined symbols for architecture x86_64"
+    # with various LLVM symbols being undefined. Since those symbols are later
+    # loaded and resolved at runtime, these errors are false positives.
+    # This behaviour can be modified via the '-undefined' OS X linker flag as
+    # follows.
 
-target_compile_features("${PROJECT_LOWER_NAME}_compiler_flags" INTERFACE "cxx_std_${CMAKE_CXX_STANDARD}")
-target_compile_options(
-        "${PROJECT_LOWER_NAME}_compiler_flags"
-        INTERFACE
-        "$<${gcc_like}:$<BUILD_INTERFACE:-Wall;-Wextra;-Wshadow;-Wformat=2;-Wunused>>"
-        "$<${clang_like}:$<BUILD_INTERFACE:-fno-omit-frame-pointer;-fsanitize=address>>"
-        "$<${msvc}:$<BUILD_INTERFACE:-W3>>"
-
-)
-        #"$<${gcc_like}:$<BUILD_INTERFACE:-Wall;-Wextra;-Wshadow;-Wformat=2;-Wunused;-fdiagnostics-color=always>"
+    target_compile_options(
+            "${PROJECT_LOWER_NAME}_${lang}_compiler_flags"
+            INTERFACE
+            "$<${gcc_like}:$<BUILD_INTERFACE:-Wall;-Wextra;-Wshadow;-Wformat=2;-Wunused;-fdiagnostics-color=always>>"
+            "$<${clang_like}:$<BUILD_INTERFACE:-fno-omit-frame-pointer;-fsanitize=address;-g>>"
+            "$<${msvc}:$<BUILD_INTERFACE:-W3;-WX;-Zi;-permissive->>"
+    )
+endforeach (lang "c" "cxx")
         #"$<PLATFORM_ID:Darwin>:-undefined dynamic_lookup>"
-        #"$<${msvc_like}:$<BUILD_INTERFACE:-W3;-WX;-Zi;-permissive->>"
 if (
         CMAKE_C_COMPILER_ID STREQUAL "Clang" OR
         CMAKE_C_COMPILER_ID STREQUAL "AppleClang" OR
         CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR
         CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
     #set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -fno-omit-frame-pointer;-fsanitize=address")
-    set(CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_LINKER_FLAGS_DEBUG} -fno-omit-frame-pointer -fsanitize=address")
-endif()
+    set(CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_LINKER_FLAGS_DEBUG} -g -fno-omit-frame-pointer -fsanitize=address")
+endif ()
 
 # LLVM/Clang is normally built without RTTI. Be consistent with that.
 if(NOT LLVM_ENABLE_RTTI)

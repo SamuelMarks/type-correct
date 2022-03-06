@@ -16,7 +16,7 @@ macro (math_type_cmake_lists)
             "$<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>"
             "$<INSTALL_INTERFACE:include>"
     )
-    target_link_libraries("${LIBRARY_NAME}" PRIVATE "${PROJECT_LOWER_NAME}_compiler_flags")
+    #target_link_libraries("${LIBRARY_NAME}" PRIVATE "${PROJECT_LOWER_NAME}_c_compiler_flags")
 
     set_target_properties("${LIBRARY_NAME}" PROPERTIES LINKER_LANGUAGE C)
 
@@ -44,7 +44,12 @@ macro (math_type_cmake_lists)
             CXX
     )
     target_link_libraries("${EXEC_NAME}" PUBLIC "${gtest_lib}")
-    target_link_libraries("${EXEC_NAME}" PRIVATE "${LIBRARY_NAME}")
+    target_link_libraries(
+            "${EXEC_NAME}"
+            PRIVATE
+            "${LIBRARY_NAME}"
+            "${PROJECT_LOWER_NAME}_cxx_compiler_flags"
+    )
 
     add_test(NAME "${EXEC_NAME}" COMMAND "${EXEC_NAME}")
 endmacro (math_type_cmake_lists)
