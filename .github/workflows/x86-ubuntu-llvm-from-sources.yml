@@ -28,6 +28,7 @@ jobs:
               --slave '/usr/bin/g++' g++ '/usr/bin/g++-11' \
               --slave '/usr/bin/gcov' gcov '/usr/bin/gcov-11'
           gcc --version ; g++ --version ; cmake --version ; '/usr/bin/ld' --version ; '/usr/bin/x86_64-linux-gnu-ld.gold' --version
+          find / -type f -name 'stddef.h' 2>/dev/null || true
       - name: Cache llvm-project
         id: cache-llvm-project
         uses: actions/cache@v2

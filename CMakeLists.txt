@@ -163,10 +163,10 @@ configure_file(
 add_subdirectory("${PROJECT_UNDER_NAME}")
 
 option(BUILD_TESTS "Build tests" ON)
-if (BUILD_TESTS)
-    include(CTest)
+include(CTest)
+if (BUILD_TESTING)
     add_subdirectory("${PROJECT_UNDER_NAME}/tests")
-endif (BUILD_TESTS)
+endif (BUILD_TESTING)
 
 include(GNUInstallDirs)
 

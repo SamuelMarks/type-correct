@@ -29,6 +29,9 @@ target_link_libraries(
         INTERFACE
         "${PROJECT_UNDER_NAME}_cxx_compiler_flags"
 )
+if (BUILD_TESTING)
+    target_compile_definitions("${LIBRARY_NAME}" PUBLIC "TYPE_CORRECT_DEBUG=1" "TYPE_CORRECT_TEST=1")
+endif (BUILD_TESTING)
 
 #######
 # CLI #
