@@ -23,7 +23,7 @@
 class TYPE_CORRECT_EXPORT TypeCorrectMatcher
     : public clang::ast_matchers::MatchFinder::MatchCallback {
 public:
-  TypeCorrectMatcher(clang::Rewriter &LACRewriter) : LACRewriter(LACRewriter) {}
+  explicit TypeCorrectMatcher(clang::Rewriter &LACRewriter) : LACRewriter(LACRewriter) {}
   // Callback that's executed whenever the Matcher in TypeCorrectASTConsumer
   // matches.
   void run(const clang::ast_matchers::MatchFinder::MatchResult &) override;

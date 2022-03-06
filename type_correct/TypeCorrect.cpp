@@ -6,10 +6,9 @@
 //  Convert types to be correct (comparison type and return type take
 //  precedence)
 //
-//    * long f() { int a = 0; return a;} --> long f() { long a = 0; return a;}
-//    * long g() { return 0L; }; int b = g(); --> long g() { return 0L; }; long
-//    b = g();
-//    * for(int i=0; i<g(); i++) {} --> for(long i=0; i<g(); i++) {}
+//    * `long f() { int a = 0; return a;}` --> `long f() { long a = 0; return a;}`
+//    * `int b = f();` --> `long b = f();`
+//    * `for(int i=0; i<f(); i++) {}` --> `for(long i=0; i<f(); i++) {}`
 //
 //  Resolves common UB and incorrect typings in C and C++ code.
 //

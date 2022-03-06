@@ -1,8 +1,7 @@
 cmake_minimum_required(VERSION 3.15)
 
 project(TypeCorrect VERSION 0.0.1 LANGUAGES C CXX)
-string(TOLOWER "${PROJECT_NAME}" PROJECT_LOWER_NAME)
-string(REPLACE "-" "_" PROJECT_LOWER_NAME "${PROJECT_LOWER_NAME}")
+set(PROJECT_UNDER_NAME "type_correct")
 
 set(CMAKE_C_VISIBILITY_PRESET hidden)
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
@@ -99,9 +98,9 @@ endif (NOT CMAKE_BUILD_TYPE)
 # Compiler flags
 foreach (lang "c" "cxx")
     string(TOUPPER "${lang}" LANG)
-    add_library("${PROJECT_LOWER_NAME}_${lang}_compiler_flags" INTERFACE)
+    add_library("${PROJECT_UNDER_NAME}_${lang}_compiler_flags" INTERFACE)
     target_compile_features(
-            "${PROJECT_LOWER_NAME}_${lang}_compiler_flags"
+            "${PROJECT_UNDER_NAME}_${lang}_compiler_flags"
             INTERFACE
             "${lang}_std_${CMAKE_${LANG}_STANDARD}"
     )
@@ -124,7 +123,7 @@ foreach (lang "c" "cxx")
     # follows.
 
     target_compile_options(
-            "${PROJECT_LOWER_NAME}_${lang}_compiler_flags"
+            "${PROJECT_UNDER_NAME}_${lang}_compiler_flags"
             INTERFACE
             "$<${gcc_like}:$<BUILD_INTERFACE:-Wall;-Wextra;-Wshadow;-Wformat=2;-Wunused;-fdiagnostics-color=always>>"
             "$<${clang_like}:$<BUILD_INTERFACE:-fno-omit-frame-pointer;-fsanitize=address;-g>>"
@@ -161,12 +160,12 @@ configure_file(
 # Doing this at the end so that all definitions and link/include paths are
 # available for the sub-projects.
 #===============================================================================
-add_subdirectory("type_correct")
+add_subdirectory("${PROJECT_UNDER_NAME}")
 
 option(BUILD_TESTS "Build tests" ON)
 if (BUILD_TESTS)
     include(CTest)
-    add_subdirectory("type_correct/tests")
+    add_subdirectory("${PROJECT_UNDER_NAME}/tests")
 endif (BUILD_TESTS)
 
 include(GNUInstallDirs)
