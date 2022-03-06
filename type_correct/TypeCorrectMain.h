@@ -2,7 +2,8 @@
 // FILE:
 //    TypeCorrectMain.h
 //
-// DESCRIPTION: Header for TypeCorrectMain.cpp (prototypes and exports for shared lib)
+// DESCRIPTION: Header for TypeCorrectMain.cpp (prototypes and exports for
+// shared lib)
 //
 // License: CC0
 //==============================================================================
@@ -22,33 +23,34 @@
 //===----------------------------------------------------------------------===//
 // PluginASTAction
 //===----------------------------------------------------------------------===//
-class TYPE_CORRECT_EXPORT TypeCorrectPluginAction : public clang::PluginASTAction {
+class TYPE_CORRECT_EXPORT TypeCorrectPluginAction
+    : public clang::PluginASTAction {
 public:
-    explicit TypeCorrectPluginAction() = default;
-    // Not used
-    bool ParseArgs(const clang::CompilerInstance &CI,
-                   const std::vector<std::string> &args) override {
-        return true;
-    }
+  explicit TypeCorrectPluginAction() = default;
+  // Not used
+  bool ParseArgs(const clang::CompilerInstance &CI,
+                 const std::vector<std::string> &args) override {
+    return true;
+  }
 
-    // Output the edit buffer for this translation unit
-    // void EndSourceFileAction() override {
-    //   RewriterForTypeCorrect
-    //       .getEditBuffer(RewriterForTypeCorrect.getSourceMgr().getMainFileID())
-    //       .write(llvm::outs());
-    // }
+  // Output the edit buffer for this translation unit
+  // void EndSourceFileAction() override {
+  //   RewriterForTypeCorrect
+  //       .getEditBuffer(RewriterForTypeCorrect.getSourceMgr().getMainFileID())
+  //       .write(llvm::outs());
+  // }
 
-    std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(clang::CompilerInstance &CI,
-                                                          llvm::StringRef file) override {
-        RewriterForTypeCorrect.setSourceMgr(CI.getSourceManager(),
-                                            CI.getLangOpts());
+  std::unique_ptr<clang::ASTConsumer>
+  CreateASTConsumer(clang::CompilerInstance &CI,
+                    llvm::StringRef file) override {
+    RewriterForTypeCorrect.setSourceMgr(CI.getSourceManager(),
+                                        CI.getLangOpts());
 
-        return std::make_unique<TypeCorrectASTConsumer>(
-                RewriterForTypeCorrect);
-    }
+    return std::make_unique<TypeCorrectASTConsumer>(RewriterForTypeCorrect);
+  }
 
 private:
-    clang::Rewriter RewriterForTypeCorrect;
+  clang::Rewriter RewriterForTypeCorrect;
 };
 
 #endif /* TYPECORRECT_TYPECORRECTMAIN_H */

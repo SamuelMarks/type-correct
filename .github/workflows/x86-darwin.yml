@@ -16,10 +16,7 @@ jobs:
           brew install llvm googletest
       - name: Build type-correct + run tests
         run: |
-          pushd "$GITHUB_WORKSPACE"
-          mkdir 'build' && pushd "$_"
+          mkdir "$GITHUB_WORKSPACE"'/build' && cd "$_"
           cmake -DCT_Clang_INSTALL_DIR="$(brew --prefix llvm)"/  ../
           cmake --build .
           ctest .
-          popd
-          popd

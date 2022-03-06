@@ -29,17 +29,17 @@ static llvm::cl::OptionCategory TypeCorrectCategory("ct-type-correct options");
 // Main driver code.
 //===----------------------------------------------------------------------===//
 int main(int argc, const char **argv) {
-    llvm::Expected<clang::tooling::CommonOptionsParser> eOptParser =
-            clang::tooling::CommonOptionsParser::create(argc, argv,
-                                                        TypeCorrectCategory);
-    if (auto E = eOptParser.takeError()) {
-        llvm::errs() << "Problem constructing CommonOptionsParser "
-                     << toString(std::move(E)) << '\n';
-        return EXIT_FAILURE;
-    }
-    clang::tooling::RefactoringTool Tool(eOptParser->getCompilations(),
-                                         eOptParser->getSourcePathList());
-    return Tool.runAndSave(
-            clang::tooling::newFrontendActionFactory<TypeCorrectPluginAction>()
-                    .get());
+  llvm::Expected<clang::tooling::CommonOptionsParser> eOptParser =
+      clang::tooling::CommonOptionsParser::create(argc, argv,
+                                                  TypeCorrectCategory);
+  if (auto E = eOptParser.takeError()) {
+    llvm::errs() << "Problem constructing CommonOptionsParser "
+                 << toString(std::move(E)) << '\n';
+    return EXIT_FAILURE;
+  }
+  clang::tooling::RefactoringTool Tool(eOptParser->getCompilations(),
+                                       eOptParser->getSourcePathList());
+  return Tool.runAndSave(
+      clang::tooling::newFrontendActionFactory<TypeCorrectPluginAction>()
+          .get());
 }

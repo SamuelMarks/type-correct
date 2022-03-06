@@ -5,8 +5,6 @@ on:
   pull_request:
     branches: [ master ]
 
-# 75e33f71c2dae584b13a7d1186ae0a038ba98838 is release/13.x @ 20/01/2022
-
 jobs:
   build:
     runs-on: macos-latest
@@ -26,14 +24,13 @@ jobs:
         with:
           repository: "llvm/llvm-project"
           ref: 75e33f71c2dae584b13a7d1186ae0a038ba98838
+          # release/13.x ^ @ 20/01/2022
           path: llvm-project
         if: steps.cache-llvm-project.outputs.cache-hit != 'true'
       - name: Build LLVM & Clang
         if: steps.cache-llvm-project.outputs.cache-hit != 'true'
         run: |
-          pushd "$GITHUB_WORKSPACE"
-          pushd 'llvm-project'
-          mkdir 'build' && pushd "$_"
+          mkdir "$GITHUB_WORKSPACE"'/llvm-project/build' && cd "$_"
           cmake -G Ninja \
             -DCMAKE_BUILD_TYPE='Release' \
             -DLLVM_ENABLE_PROJECTS='clang;libcxx;libcxxabi' \
@@ -43,15 +40,9 @@ jobs:
             -DDEFAULT_SYSROOT="$(xcrun --show-sdk-path)" \
             ../llvm
           cmake --build .
-          popd
-          popd
-          popd
       - name: Build type-correct + run tests
         run: |
-          pushd "$GITHUB_WORKSPACE"
-          mkdir 'build' && pushd "$_"
+          mkdir "$GITHUB_WORKSPACE"'/build' && cd "$_"
           cmake -DCT_Clang_INSTALL_DIR="$GITHUB_WORKSPACE/llvm-project/build" ../
           cmake --build .
           ctest .
-          popd
-          popd

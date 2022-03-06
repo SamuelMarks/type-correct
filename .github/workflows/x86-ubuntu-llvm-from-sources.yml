@@ -5,8 +5,6 @@ on:
   pull_request:
     branches: [ master ]
 
-# 75e33f71c2dae584b13a7d1186ae0a038ba98838 is release/13.x @ 20/01/2022
-
 jobs:
   build:
     runs-on: ubuntu-20.04
@@ -22,13 +20,13 @@ jobs:
           sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
           sudo apt-get update
           sudo apt-get install -y \
-              gcc-12 \
-              g++-12 \
+              gcc-11 \
+              g++-11 \
               libc-dev
           sudo update-alternatives \
-              --install '/usr/bin/gcc' gcc '/usr/bin/gcc-12' 110 \
-              --slave '/usr/bin/g++' g++ '/usr/bin/g++-12' \
-              --slave '/usr/bin/gcov' gcov '/usr/bin/gcov-12'
+              --install '/usr/bin/gcc' gcc '/usr/bin/gcc-11' 110 \
+              --slave '/usr/bin/g++' g++ '/usr/bin/g++-11' \
+              --slave '/usr/bin/gcov' gcov '/usr/bin/gcov-11'
           gcc --version ; g++ --version ; cmake --version ; '/usr/bin/ld' --version ; '/usr/bin/x86_64-linux-gnu-ld.gold' --version
       - name: Cache llvm-project
         id: cache-llvm-project
@@ -41,6 +39,7 @@ jobs:
         with:
           repository: "llvm/llvm-project"
           ref: 75e33f71c2dae584b13a7d1186ae0a038ba98838
+          # release/13.x ^ @ 20/01/2022
           path: llvm-project
         if: steps.cache-llvm-project.outputs.cache-hit != 'true'
       - name: Make ld.gold the default linker
@@ -52,8 +51,7 @@ jobs:
       - name: Build LLVM & Clang
         if: steps.cache-llvm-project.outputs.cache-hit != 'true'
         run: |
-          pushd 'llvm-project'
-          mkdir 'build' && pushd "$_"
+          mkdir "$GITHUB_WORKSPACE"'/llvm-project/build' && cd "$_"
           cmake -G 'Ninja' \
             -DCMAKE_BUILD_TYPE='Release' \
             -DLLVM_ENABLE_PROJECTS='clang;libcxx;libcxxabi' \
@@ -62,20 +60,17 @@ jobs:
             -DLLVM_INCLUDE_TESTS='OFF' \
             ../llvm
           cmake --build .
-          popd
-          popd
       - name: Build type-correct + run tests
         run: |
-          export C_INCLUDE_PATH='/usr/lib/llvm-12/lib/clang/12.0.0/include'
-          # Or '/usr/lib/gcc/x86_64-linux-gnu/12/include'
+          export C_INCLUDE_PATH='/usr/lib/llvm-11/lib/clang/11.0.0/include'
+          # Or '/usr/lib/gcc/x86_64-linux-gnu/11/include'
           # …or '/usr/include/linux'?
-          mkdir 'build' && pushd "$_"
+          mkdir "$GITHUB_WORKSPACE"'/build' && cd "$_"
           cmake --system-information
           # Test with Clang_DIR
           cmake \
              -DClang_DIR="$GITHUB_WORKSPACE/llvm-project/build/lib/cmake/clang/" \
-             -DCMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES='/usr/lib/gcc/x86_64-linux-gnu/12/include' \
+             -DCMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES='/usr/lib/gcc/x86_64-linux-gnu/11/include' \
              ../
           cmake --build .
           ctest -VV -CRelease . || ( test -f 'Testing/Temporary/LastTest.log' && cat "$_" && exit 1 )
-          popd

@@ -2,7 +2,8 @@
 // FILE:
 //    TypeCorrect.h
 //
-// DESCRIPTION: Header for TypeCorrect.cpp (prototypes and exports for shared lib)
+// DESCRIPTION: Header for TypeCorrect.cpp (prototypes and exports for shared
+// lib)
 //
 // License: CC0
 //==============================================================================
@@ -20,18 +21,18 @@
 // ASTMatcher callback
 //-----------------------------------------------------------------------------
 class TYPE_CORRECT_EXPORT TypeCorrectMatcher
-        : public clang::ast_matchers::MatchFinder::MatchCallback {
+    : public clang::ast_matchers::MatchFinder::MatchCallback {
 public:
-    TypeCorrectMatcher(clang::Rewriter &LACRewriter) : LACRewriter(LACRewriter) {}
-    // Callback that's executed whenever the Matcher in TypeCorrectASTConsumer
-    // matches.
-    void run(const clang::ast_matchers::MatchFinder::MatchResult &) override;
-    // Callback that's executed at the end of the translation unit
-    void onEndOfTranslationUnit() override;
+  TypeCorrectMatcher(clang::Rewriter &LACRewriter) : LACRewriter(LACRewriter) {}
+  // Callback that's executed whenever the Matcher in TypeCorrectASTConsumer
+  // matches.
+  void run(const clang::ast_matchers::MatchFinder::MatchResult &) override;
+  // Callback that's executed at the end of the translation unit
+  void onEndOfTranslationUnit() override;
 
 private:
-    clang::Rewriter LACRewriter;
-    llvm::SmallSet<clang::FullSourceLoc, 8> EditedLocations;
+  clang::Rewriter LACRewriter;
+  llvm::SmallSet<clang::FullSourceLoc, 8> EditedLocations;
 };
 
 //-----------------------------------------------------------------------------
@@ -39,14 +40,14 @@ private:
 //-----------------------------------------------------------------------------
 class TYPE_CORRECT_EXPORT TypeCorrectASTConsumer : public clang::ASTConsumer {
 public:
-    TypeCorrectASTConsumer(clang::Rewriter &R);
-    void HandleTranslationUnit(clang::ASTContext &Ctx) override {
-        Finder.matchAST(Ctx);
-    }
+  TypeCorrectASTConsumer(clang::Rewriter &R);
+  void HandleTranslationUnit(clang::ASTContext &Ctx) override {
+    Finder.matchAST(Ctx);
+  }
 
 private:
-    clang::ast_matchers::MatchFinder Finder;
-    TypeCorrectMatcher TCHandler;
+  clang::ast_matchers::MatchFinder Finder;
+  TypeCorrectMatcher TCHandler;
 };
 
 #endif /* TYPE_CORRECT_H */
