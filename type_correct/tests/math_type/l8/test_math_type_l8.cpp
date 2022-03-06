@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "math_l8.h"
+#include "math_type.h"
 
 GTEST_TEST(MathTest, l8) {
     EXPECT_EQ(get_bigger_arg(5L, 6L), LAST_BIGGER_ARG_RESPONSE);

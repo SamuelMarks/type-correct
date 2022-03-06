@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.13.4)
+cmake_minimum_required(VERSION 3.15)
 
 project(TypeCorrect VERSION 0.0.1 LANGUAGES C CXX)
 string(TOLOWER "${PROJECT_NAME}" PROJECT_LOWER_NAME)
@@ -31,7 +31,7 @@ elseif (DEFINED Clang_DIR)
     set(CT_CLANG_PACKAGE_DIR "${Clang_DIR}/../../..")
 elseif (DEFINED LLVM_CMAKE_DIR)
     set(CT_CLANG_PACKAGE_DIR "${LLVM_CMAKE_DIR}/../../..")
-endif()
+endif ()
 mark_as_advanced(CT_CLANG_PACKAGE_DIR)
 
 # Set this to a valid Clang installation directory. This is most likely where
@@ -43,17 +43,17 @@ set(CT_Clang_INSTALL_DIR "${CT_CLANG_PACKAGE_DIR}" CACHE PATH
 # 1. VERIFY CLANG INSTALLATION DIR
 #===============================================================================
 set(CT_LLVM_INCLUDE_DIR "${CT_Clang_INSTALL_DIR}/include/llvm")
-if(NOT EXISTS "${CT_LLVM_INCLUDE_DIR}")
+if (NOT EXISTS "${CT_LLVM_INCLUDE_DIR}")
     message(FATAL_ERROR
             " CT_Clang_INSTALL_DIR (${CT_LLVM_INCLUDE_DIR}) is invalid.")
-endif()
+endif (NOT EXISTS "${CT_LLVM_INCLUDE_DIR}")
 
 set(CT_LLVM_CMAKE_FILE
         "${CT_Clang_INSTALL_DIR}/lib/cmake/clang/ClangConfig.cmake")
-if(NOT EXISTS "${CT_LLVM_CMAKE_FILE}")
+if (NOT EXISTS "${CT_LLVM_CMAKE_FILE}")
     message(FATAL_ERROR
             " CT_LLVM_CMAKE_FILE (${CT_LLVM_CMAKE_FILE}) is invalid.")
-endif()
+endif (NOT EXISTS "${CT_LLVM_CMAKE_FILE}")
 
 #===============================================================================
 # 2. LOAD CLANG CONFIGURATION
@@ -67,9 +67,9 @@ find_package(Clang REQUIRED CONFIG)
 # Sanity check. As Clang does not expose e.g. `CLANG_VERSION_MAJOR` through
 # AddClang.cmake, we have to use LLVM_VERSION_MAJOR instead.
 # TODO: Revisit when next version is released.
-if(NOT "13" VERSION_EQUAL "${LLVM_VERSION_MAJOR}")
+if (NOT "13" VERSION_EQUAL "${LLVM_VERSION_MAJOR}")
     message(FATAL_ERROR "Found LLVM ${LLVM_VERSION_MAJOR}, but need LLVM 13")
-endif()
+endif (NOT "13" VERSION_EQUAL "${LLVM_VERSION_MAJOR}")
 
 message(STATUS "Found Clang ${LLVM_PACKAGE_VERSION}")
 message(STATUS "Using ClangConfig.cmake in: ${CT_Clang_INSTALL_DIR}")
@@ -90,16 +90,17 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Build type
-if(NOT CMAKE_BUILD_TYPE)
+if (NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug CACHE
             STRING "Build type (default Debug):" FORCE)
-endif()
+endif (NOT CMAKE_BUILD_TYPE)
 
 # Compiler flags
 add_library("${PROJECT_LOWER_NAME}_compiler_flags" INTERFACE)
 target_compile_features("${PROJECT_LOWER_NAME}_compiler_flags" INTERFACE "cxx_std_${CMAKE_CXX_STANDARD}")
 
-set(gcc_like "$<COMPILE_LANG_AND_ID:C,CXX,ARMClang,AppleClang,Clang,GNU>")
+set(gcc_like "$<COMPILE_LANG_AND_ID:C,CXX,ARMClang,AppleClang,Clang,GNU,LCC>")
+set(clang_like "$<COMPILE_LANG_AND_ID:C,CXX,ARMClang,AppleClang,Clang,GNU,LCC>")
 set(msvc "$<COMPILE_LANG_AND_ID:C,CXX,MSVC>")
 # -g -fsanitize=address -fno-omit-frame-pointer
 # On Darwin (unlike on Linux), undefined symbols in shared objects are not
@@ -115,15 +116,24 @@ set(msvc "$<COMPILE_LANG_AND_ID:C,CXX,MSVC>")
 # This behaviour can be modified via the '-undefined' OS X linker flag as
 # follows.
 
+target_compile_features("${PROJECT_LOWER_NAME}_compiler_flags" INTERFACE "cxx_std_${CMAKE_CXX_STANDARD}")
 target_compile_options(
         "${PROJECT_LOWER_NAME}_compiler_flags"
         INTERFACE
-        "$<${gcc_like}:$<BUILD_INTERFACE:-Wall;-Wextra;-Wshadow;-Wformat=2;-Wunused;-fdiagnostics-color=always>"
-        "$<PLATFORM_ID:Darwin>:-undefined dynamic_lookup>"
-        "$<${msvc}:$<BUILD_INTERFACE:-W3;-WX;-Zi;-permissive->>"
+        "$<${gcc_like}:$<BUILD_INTERFACE:-Wall;-Wextra;-Wshadow;-Wformat=2;-Wunused>>"
+        "$<${clang_like}:$<BUILD_INTERFACE:-fno-omit-frame-pointer;-fsanitize=address>>"
+        "$<${msvc}:$<BUILD_INTERFACE:-W3>>"
+
 )
-if (CMAKE_C_COMPILER_ID STREQUAL "Clang" OR CMAKE_C_COMPILER_ID STREQUAL "AppleClang")
-    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -fno-omit-frame-pointer -fsanitize=address")
+        #"$<${gcc_like}:$<BUILD_INTERFACE:-Wall;-Wextra;-Wshadow;-Wformat=2;-Wunused;-fdiagnostics-color=always>"
+        #"$<PLATFORM_ID:Darwin>:-undefined dynamic_lookup>"
+        #"$<${msvc_like}:$<BUILD_INTERFACE:-W3;-WX;-Zi;-permissive->>"
+if (
+        CMAKE_C_COMPILER_ID STREQUAL "Clang" OR
+        CMAKE_C_COMPILER_ID STREQUAL "AppleClang" OR
+        CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR
+        CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
+    #set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -fno-omit-frame-pointer;-fsanitize=address")
     set(CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_LINKER_FLAGS_DEBUG} -fno-omit-frame-pointer -fsanitize=address")
 endif()
 

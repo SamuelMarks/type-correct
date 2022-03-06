@@ -23,6 +23,10 @@ target_link_libraries(
         PUBLIC
         "LLVMSupport"
         "clangTooling"
+)
+target_link_libraries(
+        "${LIBRARY_NAME}"
+        INTERFACE
         "${PROJECT_LOWER_NAME}_compiler_flags"
 )
 

@@ -1,4 +1,4 @@
-#include "math_b4.h"
+#include "math_type.h"
 
 int LAST_BIGGER_ARG_RESPONSE = 0L;
 
