@@ -41,7 +41,6 @@ foreach (name ${_built} "test_type_correct")
             LINKER_LANGUAGE
             CXX
     )
-    message("target_link_libraries\(\"${EXEC_NAME}\" PUBLIC \"${_libs}\"\)")
     target_link_libraries("${EXEC_NAME}" PUBLIC "${_libs}")
 
     add_test(NAME "${EXEC_NAME}" COMMAND "${EXEC_NAME}")

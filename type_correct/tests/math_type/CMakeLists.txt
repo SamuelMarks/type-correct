@@ -1,11 +1,10 @@
-macro (math_type_cmake_lists)
-    get_filename_component(suffix "${CMAKE_CURRENT_SOURCE_DIR}" NAME)
+foreach (suffix "b4" "l8")
     set(LIBRARY_NAME "${PROJECT_LOWER_NAME}_math_${suffix}")
 
-    set(Header_Files "math_type.h")
+    set(Header_Files "${suffix}/math_type.h")
     source_group("Header Files" FILES "${Header_Files}")
 
-    set(Source_Files "math_type.c")
+    set(Source_Files "${suffix}/math_type.c")
     source_group("Source Files" FILES "${Source_Files}")
 
     add_library("${LIBRARY_NAME}" "${Header_Files}" "${Source_Files}")
@@ -33,7 +32,7 @@ macro (math_type_cmake_lists)
     )
     set(EXEC_NAME "test_math_type_${suffix}")
 
-    set(Source_Files "${EXEC_NAME}.cpp")
+    set(Source_Files "${suffix}/${EXEC_NAME}.cpp")
     source_group("${EXEC_NAME} Source Files" FILES "${Source_Files}")
 
     add_executable("${EXEC_NAME}" "${Source_Files}")
@@ -52,8 +51,4 @@ macro (math_type_cmake_lists)
     )
 
     add_test(NAME "${EXEC_NAME}" COMMAND "${EXEC_NAME}")
-endmacro (math_type_cmake_lists)
-
-foreach(suffix "b4" "l8")
-    add_subdirectory("${suffix}")
 endforeach (suffix "b4" "l8")
