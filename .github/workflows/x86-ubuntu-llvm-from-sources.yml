@@ -7,9 +7,9 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v6
       - name: Install Dependencies
         run: |
           sudo apt-get install -y \
@@ -17,30 +17,18 @@ jobs:
               ninja-build \
               manpages-dev \
               software-properties-common
-          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
-          sudo apt-get update
-          sudo apt-get install -y \
-              gcc-11 \
-              g++-11 \
-              libc-dev
-          sudo update-alternatives \
-              --install '/usr/bin/gcc' gcc '/usr/bin/gcc-11' 110 \
-              --slave '/usr/bin/g++' g++ '/usr/bin/g++-11' \
-              --slave '/usr/bin/gcov' gcov '/usr/bin/gcov-11'
-          gcc --version ; g++ --version ; cmake --version ; '/usr/bin/ld' --version ; '/usr/bin/x86_64-linux-gnu-ld.gold' --version
-          find / -type f -name 'stddef.h' 2>/dev/null || true
       - name: Cache llvm-project
         id: cache-llvm-project
-        uses: actions/cache@v2
+        uses: actions/cache@v5
         with:
           path: llvm-project
-          key: ${{ runner.os }}-llvm-project-75e33f71c2dae584b13a7d1186ae0a038ba98838
+          key: ${{ runner.os }}-llvm-project-cd708029e0b2869e80abe31ddb175f7c35361f90
       - name: Clone llvm-project
-        uses: actions/checkout@v2
+        uses: actions/checkout@v6
         with:
           repository: "llvm/llvm-project"
-          ref: 75e33f71c2dae584b13a7d1186ae0a038ba98838
-          # release/13.x ^ @ 20/01/2022
+          ref: llvmorg-19.1.7
+          # 19.1.7 ^ @ 15/01/2025 ; aka cd708029e0b2869e80abe31ddb175f7c35361f90
           path: llvm-project
         if: steps.cache-llvm-project.outputs.cache-hit != 'true'
       - name: Make ld.gold the default linker
@@ -63,15 +51,15 @@ jobs:
           cmake --build .
       - name: Build type-correct + run tests
         run: |
-          export C_INCLUDE_PATH='/usr/lib/llvm-11/lib/clang/11.0.0/include'
-          # Or '/usr/lib/gcc/x86_64-linux-gnu/11/include'
+          export C_INCLUDE_PATH='/usr/lib/llvm-19/lib/clang/19.1.7/include'
+          # Or '/usr/lib/gcc/x86_64-linux-gnu/19/include'
           # …or '/usr/include/linux'?
           mkdir "$GITHUB_WORKSPACE"'/build' && cd "$_"
           cmake --system-information
           # Test with Clang_DIR
           cmake \
              -DClang_DIR="$GITHUB_WORKSPACE/llvm-project/build/lib/cmake/clang/" \
-             -DCMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES='/usr/lib/gcc/x86_64-linux-gnu/11/include' \
+             -DCMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES='/usr/lib/gcc/x86_64-linux-gnu/19/include' \
              ../
           cmake --build .
           ctest -VV -CRelease . || ( test -f 'Testing/Temporary/LastTest.log' && cat "$_" && exit 1 )

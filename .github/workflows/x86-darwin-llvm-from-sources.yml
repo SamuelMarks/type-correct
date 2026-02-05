@@ -9,18 +9,18 @@ jobs:
   build:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v6
       - name: Install Ninja and Google Test
         run: |
           brew install ninja googletest
       - name: Cache llvm-project
         id: cache-llvm-project
-        uses: actions/cache@v2
+        uses: actions/cache@v5
         with:
           path: llvm-project
           key: ${{ runner.os }}-llvm-project-75e33f71c2dae584b13a7d1186ae0a038ba98838
       - name: Clone llvm-project
-        uses: actions/checkout@v2
+        uses: actions/checkout@v6
         with:
           repository: "llvm/llvm-project"
           ref: 75e33f71c2dae584b13a7d1186ae0a038ba98838
