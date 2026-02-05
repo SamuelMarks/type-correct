@@ -37,14 +37,20 @@ public:
    *
    * @param Rewriter Reference to the Clang Rewriter used to modify the source
    * code.
+   * @param UseDecltype Boolean flag indicating if 'decltype(expr)' syntax
+   * should be preferred (Optimization Level).
+   * @param ExpandAuto Boolean flag indicating if 'auto' should be aggressively
+   * expanded even if initialized by a call.
    */
-  explicit TypeCorrectMatcher(clang::Rewriter &Rewriter);
+  explicit TypeCorrectMatcher(clang::Rewriter &Rewriter,
+                              bool UseDecltype = false,
+                              bool ExpandAuto = false);
 
   /**
    * @brief Callback executed whenever a registered AST matcher succeeds.
    *
    * This function dispatches to specific handlers based on the bound specific
-   * ID (e.g., "var_init_match", "func_return_match").
+   * ID (e.g., "bound_var_decl", "bound_for_loop").
    *
    * @param Result Container for the AST nodes matching the pattern.
    */
@@ -54,7 +60,8 @@ public:
   /**
    * @brief Callback executed at the end of the translation unit.
    *
-   * Used to flush changes to stdout or files.
+   * Used to flush changes to stdout or files. This is called manually
+   * by the ASTConsumer or automatically if registered differently.
    */
   void onEndOfTranslationUnit() override;
 
@@ -65,17 +72,39 @@ private:
   clang::Rewriter &Rewriter;
 
   /**
+   * @brief Optimization/Style flag used to generate `decltype(expr)::type`.
+   */
+  bool UseDecltype;
+
+  /**
+   * @brief Optimization/Style flag used to force expansion of `auto` types.
+   */
+  bool ExpandAuto;
+
+  /**
    * @brief Helper to resolve and rewrite a type location.
    *
    * Drills down into specific type locations (skipping const qualifiers)
    * to replace the base type specifier with the new correct type.
    *
-   * @param OldLoc The location of the existing type in source (e.g., 'int').
+   * Handles special cases for `AutoTypeLoc`:
+   * - If `ExpandAuto` is false, and the variable is initialized by a function
+   * call, `auto` is preserved.
+   * - Otherwise, `auto` is rewritten to the explicit type (or decltype string).
+   *
+   * @param OldLoc The location of the existing type in source (e.g., 'int' or
+   * 'auto').
    * @param NewType The qualified type that should be there (e.g., 'size_t').
-   * @param Ctx The AST Context for printing policies.
+   * @param Ctx The AST Context for printing policies and source managers.
+   * @param BoundVar Optional pointer to the variable being declared (context
+   * for `auto` deduction checks).
+   * @param BaseExpr Optional pointer to the expression instance (e.g., vector
+   * object) for decltype generation.
    */
   void ResolveType(const clang::TypeLoc &OldLoc, const clang::QualType &NewType,
-                   clang::ASTContext *Ctx);
+                   clang::ASTContext *Ctx,
+                   const clang::VarDecl *BoundVar = nullptr,
+                   const clang::Expr *BaseExpr = nullptr);
 };
 
 /**
@@ -85,7 +114,7 @@ private:
  * Registers the specific AST Matchers for type correction strategies:
  * 1. Variable Initialization Mismatches.
  * 2. Function Return Type Mismatches.
- * 3. Loop Iterator Mismatches.
+ * 3. Loop Iterator Mismatches (Condition-based and Init-based).
  */
 class TYPE_CORRECT_EXPORT TypeCorrectASTConsumer : public clang::ASTConsumer {
 public:
@@ -96,8 +125,12 @@ public:
    *
    * @param Rewriter Reference to the Clang Rewriter passed to the Matcher
    * callback.
+   * @param UseDecltype Boolean flag to enable decltype optimization strategy.
+   * @param ExpandAuto Boolean flag to enable aggressive auto expansion.
    */
-  explicit TypeCorrectASTConsumer(clang::Rewriter &Rewriter);
+  explicit TypeCorrectASTConsumer(clang::Rewriter &Rewriter,
+                                  bool UseDecltype = false,
+                                  bool ExpandAuto = false);
 
   /**
    * @brief Entry point for the consumer.
