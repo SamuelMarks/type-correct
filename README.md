@@ -3,8 +3,6 @@ type-correct
 
 [![CC0](https://img.shields.io/badge/license-CC0-%23373737)](LICENSE.md)
 [![x86-Darwin](https://github.com/SamuelMarks/type-correct/actions/workflows/x86-darwin.yml/badge.svg)](https://github.com/SamuelMarks/type-correct/actions/workflows/x86-darwin.yml)
-[![x86-Ubuntu-llvm-from-sources](https://github.com/SamuelMarks/type-correct/actions/workflows/x86-ubuntu-llvm-from-sources.yml/badge.svg)](https://github.com/SamuelMarks/type-correct/actions/workflows/x86-ubuntu-llvm-from-sources.yml)
-[![x86-Darwin-llvm-from-sources](https://github.com/SamuelMarks/type-correct/actions/workflows/x86-darwin-llvm-from-sources.yml/badge.svg)](https://github.com/SamuelMarks/type-correct/actions/workflows/x86-darwin-llvm-from-sources.yml)
 [![x86-Ubuntu](https://github.com/SamuelMarks/type-correct/actions/workflows/x86-ubuntu.yml/badge.svg)](https://github.com/SamuelMarks/type-correct/actions/workflows/x86-ubuntu.yml)
 
 [LLVM](https://llvm.org) [LibClang](https://clang.llvm.org/doxygen/group__CINDEX.html) / [LibTooling](https://clang.llvm.org/docs/LibTooling.html) solution to 'fix' types, rewriting inconsistent use of types to make them consistent.
@@ -97,10 +95,12 @@ But… attempts are made to be reasonably conservative. See [`type_correct/tests
 
 Install compiler suite, CMake, and LLVM (from `brew`, `apt`, or source), then run:
 
-    mkdir build && cd build
-    cmake .. \
-          -DCMAKE_BUILD_TYPE='Debug' \
-          -DCT_Clang_INSTALL_DIR='/usr/local/opt/llvm'
+```sh
+$ mkdir build && cd build
+$ cmake .. \
+  -DCMAKE_BUILD_TYPE='Debug' \
+  -DCT_Clang_INSTALL_DIR='/usr/local/opt/llvm'
+```
 
 (replace `/usr/local/opt/llvm` with your LLVM install dir)
 
