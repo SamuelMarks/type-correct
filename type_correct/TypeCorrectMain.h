@@ -11,6 +11,7 @@
 #ifndef TYPECORRECT_TYPECORRECTMAIN_H
 #define TYPECORRECT_TYPECORRECTMAIN_H
 
+#include <string>
 #include <vector>
 
 #include <clang/Frontend/CompilerInstance.h>
@@ -26,19 +27,18 @@
 class TYPE_CORRECT_EXPORT TypeCorrectPluginAction
     : public clang::PluginASTAction {
 public:
-  explicit TypeCorrectPluginAction() = default;
-  // Not used
+  explicit TypeCorrectPluginAction(std::string ProjectRoot = "",
+                                   std::string ExcludePattern = "",
+                                   bool InPlace = false)
+      : ProjectRoot(std::move(ProjectRoot)),
+        ExcludePattern(std::move(ExcludePattern)), InPlace(InPlace) {}
+
+  // Not used via CLI tool directly usually, but implemented for completeness
   bool ParseArgs(const clang::CompilerInstance &CI,
                  const std::vector<std::string> &args) override {
+    // CLI arguments are typically handled by CommonOptionsParser in main
     return true;
   }
-
-  // Output the edit buffer for this translation unit
-  // void EndSourceFileAction() override {
-  //   RewriterForTypeCorrect
-  //       .getEditBuffer(RewriterForTypeCorrect.getSourceMgr().getMainFileID())
-  //       .write(llvm::outs());
-  // }
 
   std::unique_ptr<clang::ASTConsumer>
   CreateASTConsumer(clang::CompilerInstance &CI,
@@ -46,11 +46,17 @@ public:
     RewriterForTypeCorrect.setSourceMgr(CI.getSourceManager(),
                                         CI.getLangOpts());
 
-    return std::make_unique<TypeCorrectASTConsumer>(RewriterForTypeCorrect);
+    return std::make_unique<TypeCorrectASTConsumer>(
+        RewriterForTypeCorrect,
+        /*UseDecltype=*/false,
+        /*ExpandAuto=*/false, ProjectRoot, ExcludePattern, InPlace);
   }
 
 private:
   clang::Rewriter RewriterForTypeCorrect;
+  std::string ProjectRoot;
+  std::string ExcludePattern;
+  bool InPlace;
 };
 
 #endif /* TYPECORRECT_TYPECORRECTMAIN_H */
