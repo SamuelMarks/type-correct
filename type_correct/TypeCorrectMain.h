@@ -23,12 +23,15 @@ public:
   explicit TypeCorrectPluginAction(
       std::string ProjectRoot = "", std::string ExcludePattern = "",
       bool InPlace = false, bool EnableAbiBreakingChanges = false,
+      bool AuditMode = false,
       type_correct::Phase CurrentPhase = type_correct::Phase::Standalone,
-      std::string FactsOutputDir = "")
+      std::string FactsOutputDir = "", std::string ReportFile = "")
       : ProjectRoot(std::move(ProjectRoot)),
         ExcludePattern(std::move(ExcludePattern)), InPlace(InPlace),
         EnableAbiBreakingChanges(EnableAbiBreakingChanges),
-        CurrentPhase(CurrentPhase), FactsOutputDir(std::move(FactsOutputDir)) {}
+        AuditMode(AuditMode), CurrentPhase(CurrentPhase),
+        FactsOutputDir(std::move(FactsOutputDir)),
+        ReportFile(std::move(ReportFile)) {}
 
   bool ParseArgs(const clang::CompilerInstance &CI,
                  const std::vector<std::string> &args) override {
@@ -45,7 +48,8 @@ public:
         RewriterForTypeCorrect,
         /*UseDecltype=*/false,
         /*ExpandAuto=*/false, ProjectRoot, ExcludePattern, InPlace,
-        EnableAbiBreakingChanges, CurrentPhase, FactsOutputDir);
+        EnableAbiBreakingChanges, AuditMode, CurrentPhase, FactsOutputDir,
+        ReportFile);
   }
 
 private:
@@ -54,8 +58,10 @@ private:
   std::string ExcludePattern;
   bool InPlace;
   bool EnableAbiBreakingChanges;
+  bool AuditMode;
   type_correct::Phase CurrentPhase;
   std::string FactsOutputDir;
+  std::string ReportFile;
 };
 
 #endif /* TYPECORRECT_TYPECORRECTMAIN_H */

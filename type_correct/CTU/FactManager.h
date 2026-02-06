@@ -4,6 +4,7 @@
  *
  * Defines the logical structures for storing type usage facts and the
  * interfaces for serializing/deserializing these facts to intermediate files.
+ * Includes support for iterative convergence checking.
  *
  * @author SamuelMarks
  * @license CC0
@@ -39,9 +40,30 @@ struct SymbolFact {
   /** @brief Default constructor. */
   SymbolFact() : IsField(false) {}
 
-  /** @brief Parameterized constructor. */
+  /** @brief Parameterized constructor.
+   *  @param U The USR string.
+   *  @param T The Type name string.
+   *  @param F IsField flag.
+   */
   SymbolFact(std::string U, std::string T, bool F)
       : USR(std::move(U)), TypeName(std::move(T)), IsField(F) {}
+
+  /**
+   * @brief Equality operator for convergence checking.
+   * @param Other The other fact to compare against.
+   * @return true if USR, TypeName, and IsField are identical.
+   */
+  bool operator==(const SymbolFact &Other) const {
+    return USR == Other.USR && TypeName == Other.TypeName &&
+           IsField == Other.IsField;
+  }
+
+  /**
+   * @brief Inequality operator.
+   * @param Other The other fact.
+   * @return true if any field differs.
+   */
+  bool operator!=(const SymbolFact &Other) const { return !(*this == Other); }
 };
 
 /**
@@ -52,6 +74,7 @@ struct SymbolFact {
  * 1. Write a list of observed facts from a single TU to a file.
  * 2. Read facts from files.
  * 3. Merge facts to determine the global winner for a symbol.
+ * 4. Check for convergence by comparing memory state to disk state.
  */
 class TYPE_CORRECT_EXPORT FactManager {
 public:
@@ -69,8 +92,7 @@ public:
    * @brief Deserialize facts from a file and append to the provided map.
    *
    * @param FilePath The input path.
-   * @param OutFacts Map to populate. Existing keys may be overwritten if logic
-   * demands (Merge step usually happens later).
+   * @param OutFacts Vector to populate with raw facts.
    * @return true on success.
    */
   static bool ReadFacts(const std::string &FilePath,
@@ -79,14 +101,27 @@ public:
   /**
    * @brief Reducing logic: Merges a raw list of facts into a unique map.
    *
-   * Resolves conflicts by picking the "widest" type (string-based heuristic for
-   * now).
+   * Resolves conflicts by picking the "widest" type.
    *
    * @param RawFacts List of all facts tied to diverse TUs.
    * @return std::map<std::string, SymbolFact> The consolidated global state.
    */
   static std::map<std::string, SymbolFact>
   MergeFacts(const std::vector<SymbolFact> &RawFacts);
+
+  /**
+   * @brief Compares a new set of merged facts against the existing global file.
+   *
+   * Used to determine if the iterative solver loop should terminate.
+   *
+   * @param GlobalFilePath The path to the existing global.facts file.
+   * @param NewFacts The newly computed merged map.
+   * @return true if the content of the file matches NewFacts exactly.
+   * @return false if the file is missing or content differs.
+   */
+  static bool
+  IsConvergenceReached(const std::string &GlobalFilePath,
+                       const std::map<std::string, SymbolFact> &NewFacts);
 };
 
 } // namespace ctu

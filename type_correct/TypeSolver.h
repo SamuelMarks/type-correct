@@ -1,11 +1,14 @@
 /**
  * @file TypeSolver.h
- * @brief Header for the Constraint-Based Type Solver.
+ * @brief Header for the Data-Flow Sensitive Solver with Pointer Semantics.
  *
- * The TypeSolver represents variables and declarations as nodes in a graph.
- * Assignments, comparisons, and interactions form edges. The solver identifies
- * connected components of variables that interact and determines the optimal
- * shared type constraint for the entire component.
+ * The TypeSolver is the core engine for local resolution.
+ * To support "Pointer Arithmetic and ptrdiff_t Semantics", it now tracks
+ * whether a variable is used as an offset in pointer arithmetic.
+ *
+ * If a variable is flagged as a Pointer Offset, the solver treats `ptrdiff_t`
+ * as the minimal width requirement, preventing 32-bit truncation on 64-bit
+ * systems.
  *
  * @author SamuelMarks
  * @license CC0
@@ -17,6 +20,7 @@
 #include <clang/AST/ASTContext.h>
 #include <clang/AST/Decl.h>
 #include <clang/AST/Type.h>
+#include <cstdint>
 #include <map>
 #include <set>
 #include <vector>
@@ -26,107 +30,165 @@
 namespace type_correct {
 
 /**
+ * @struct ValueRange
+ * @brief Represents a closed numerical interval [Min, Max].
+ */
+struct ValueRange {
+  int64_t Min;
+  int64_t Max;
+  bool HasMin;
+  bool HasMax;
+
+  ValueRange() : Min(0), Max(0), HasMin(false), HasMax(false) {}
+  ValueRange(int64_t Val) : Min(Val), Max(Val), HasMin(true), HasMax(true) {}
+  ValueRange(int64_t Least, int64_t Most)
+      : Min(Least), Max(Most), HasMin(true), HasMax(true) {}
+
+  void Union(const ValueRange &Other);
+};
+
+/**
+ * @enum OpKind
+ * @brief Operations supported by the symbolic solver.
+ */
+enum class OpKind { None, Add, Sub, Mul, Div };
+
+/**
+ * @struct SymbolicConstraint
+ * @brief Result = LHS <Op> RHS.
+ */
+struct SymbolicConstraint {
+  const clang::NamedDecl *Result;
+  OpKind Op;
+  const clang::NamedDecl *LHS;
+  const clang::NamedDecl *RHS;
+
+  SymbolicConstraint(const clang::NamedDecl *Res, OpKind O,
+                     const clang::NamedDecl *L, const clang::NamedDecl *R)
+      : Result(Res), Op(O), LHS(L), RHS(R) {}
+};
+
+/**
  * @struct NodeState
- * @brief Represents the state of a single declaration (variable/function/field)
- * in the solver graph.
+ * @brief The solution state for a specific declaration.
  */
 struct NodeState {
-  /** @brief The pointer to the Clang declaration. */
   const clang::NamedDecl *Decl;
-
-  /** @brief The initial type found in the source code. */
   clang::QualType OriginalType;
-
-  /** @brief The minimal inferred type requirement based on direct usage. */
   clang::QualType ConstraintType;
+  ValueRange ComputedRange;
 
-  /** @brief If true, this node cannot be modified (e.g. system header, locked
-   * ABI). */
+  /**
+   * @brief If true, this node is structurally locked (e.g. system header).
+   */
   bool IsFixed;
 
-  /** @brief Optional base expression source for decltype logic. */
+  /**
+   * @brief If true, this node has an external constraint applied via Global
+   * Facts.
+   */
+  bool HasGlobalConstraint;
+
+  /**
+   * @brief If true, this node is used as an offset in pointer arithmetic.
+   * Forces the type to be at least as wide as `ptrdiff_t`.
+   */
+  bool IsPtrOffset;
+
   const clang::Expr *BaseExpr;
 
-  /** @brief Default constructor. */
-  NodeState() : Decl(nullptr), IsFixed(false), BaseExpr(nullptr) {}
+  NodeState()
+      : Decl(nullptr), IsFixed(false), HasGlobalConstraint(false),
+        IsPtrOffset(false), BaseExpr(nullptr) {}
 
-  /** @brief Initializing constructor. */
   NodeState(const clang::NamedDecl *D, clang::QualType T, bool Locked = false)
       : Decl(D), OriginalType(T), ConstraintType(T), IsFixed(Locked),
-        BaseExpr(nullptr) {}
+        HasGlobalConstraint(false), IsPtrOffset(false), BaseExpr(nullptr) {}
 };
 
 /**
  * @class TypeSolver
- * @brief Graph-based solver for type constraints.
+ * @brief Solves the system of type constraints including pointer semantics.
  */
 class TYPE_CORRECT_EXPORT TypeSolver {
 public:
-  /** @brief Constructor. */
   TypeSolver();
 
   /**
-   * @brief Register a declaration in the solver.
-   *
-   * @param Decl The declaration (VarDecl, FieldDecl, etc.).
-   * @param CurrentType The types as strictly written in source now.
-   * @param IsFixed If true, this node acts as an immovable anchor.
+   * @brief Registers a declaration within the solver scope.
+   * @param Decl The AST node.
+   * @param CurrentType The type as written in source.
+   * @param IsFixed If true, we cannot rewrite this node.
    */
   void AddNode(const clang::NamedDecl *Decl, clang::QualType CurrentType,
                bool IsFixed);
 
   /**
-   * @brief Register a directional flow or equivalence between two declarations.
+   * @brief Injects a constraint derived from Global Facts (CTU).
+   * @param Decl The decl.
+   * @param GlobalType The type asserted by global consensus.
+   * @param Ctx AST Context.
+   */
+  void AddGlobalConstraint(const clang::NamedDecl *Decl,
+                           clang::QualType GlobalType, clang::ASTContext *Ctx);
+
+  /**
+   * @brief Flags a declaration as being used for pointer arithmetic.
    *
-   * Represents assignment `A = B` (equality constraint).
+   * This updates the internal state to ensure the variable resolves to
+   * `ptrdiff_t` (or a compatible wide unsigned type like `size_t`)
+   * regardless of the specific values in `computedRange`, because
+   * pointer offsets on 64-bit systems must hold 64-bit values.
    *
-   * @param User The variable being assigned TO.
-   * @param Used The variable being assigned FROM.
+   * @param Decl The variable declaration used as an offset.
+   */
+  void AddPointerOffsetUsage(const clang::NamedDecl *Decl);
+
+  /**
+   * @brief Links two nodes as structurally equivalent (Assignment/Data Flow).
    */
   void AddEdge(const clang::NamedDecl *User, const clang::NamedDecl *Used);
 
   /**
-   * @brief Apply a specific type constraint to a node.
-   *
-   * E.g., "Variable V is assigned the result of strlen()", implying V should be
-   * size_t.
-   *
-   * @param Decl The declaration.
-   * @param Candidate The type constraint (e.g. size_t).
-   * @param BaseExpr Optional expression derived from.
-   * @param Ctx AST Context for sizing.
+   * @brief Applies a local type constraint.
    */
   void AddConstraint(const clang::NamedDecl *Decl, clang::QualType Candidate,
                      const clang::Expr *BaseExpr, clang::ASTContext *Ctx);
 
   /**
-   * @brief Solves the graph constraints.
+   * @brief Applies a data-value range constraint.
+   */
+  void AddRangeConstraint(const clang::NamedDecl *Decl, ValueRange Range);
+
+  /**
+   * @brief Adds a symbolic operation to the graph.
+   */
+  void AddSymbolicConstraint(const clang::NamedDecl *Result, OpKind Op,
+                             const clang::NamedDecl *LHS,
+                             const clang::NamedDecl *RHS);
+
+  /**
+   * @brief Computes the optimal type for all registered nodes.
    *
-   * 1. Finds connected components.
-   * 2. Finds the widest "Constraint" within each component.
-   * 3. Determines if the component can be upgraded.
-   * 4. Returns a map of Decl -> NewType for all nodes that should change.
+   * Integrates pointer semantics by forcing `IsPtrOffset` nodes to widen
+   * to `ptrdiff_t` before final resolution.
    *
-   * @param Ctx The ASTContext for type comparison.
-   * @return std::map<const clang::NamedDecl *, NodeState> The resolved
-   * rewrites.
+   * @param Ctx Clang AST Context.
+   * @return A map of updates (Decl -> New State).
    */
   std::map<const clang::NamedDecl *, NodeState> Solve(clang::ASTContext *Ctx);
 
 private:
-  /** @brief Storage of nodes keyed by declaration pointer. */
   std::map<const clang::NamedDecl *, NodeState> Nodes;
-
-  /** @brief Adjacency list: Decl -> List of connected Decls. */
   std::map<const clang::NamedDecl *, std::vector<const clang::NamedDecl *>>
       Adjacency;
+  std::vector<SymbolicConstraint> SymbolicConstraints;
 
-  /**
-   * @brief Helper to compare two types and return the "wider" one.
-   * matches logic in TypeCorrectMatcher (int < long < size_t).
-   */
   clang::QualType GetWider(clang::QualType A, clang::QualType B,
                            clang::ASTContext *Ctx);
+  clang::QualType GetOptimalTypeForRange(const ValueRange &R,
+                                         clang::QualType Original,
+                                         clang::ASTContext *Ctx);
 };
 
 } // namespace type_correct
