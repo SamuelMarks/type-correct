@@ -22,6 +22,7 @@
 #include <clang/AST/ExprCXX.h>
 #include <clang/AST/TypeLoc.h>
 #include <clang/Basic/SourceManager.h>
+#include <clang/Basic/Version.h>
 #include <clang/Frontend/CompilerInstance.h>
 #include <clang/Frontend/FrontendPluginRegistry.h>
 #include <clang/Index/USRGeneration.h>
@@ -43,9 +44,26 @@ using namespace clang;
 using namespace clang::ast_matchers;
 
 //-----------------------------------------------------------------------------
-// Constructor & Configuration
+// Construction & Configuration
 //-----------------------------------------------------------------------------
 
+/**
+ * @brief Constructs the TypeCorrectMatcher with all configuration options.
+ *
+ * Initializes the Structural Analysis Engine and loads global facts if available.
+ *
+ * @param Rewriter Reference to the Clang Rewriter used for source transformations.
+ * @param UseDecltype Parameter to prefer `decltype()` syntax over explicit types.
+ * @param ExpandAuto Parameter to expand `auto` deduced types.
+ * @param ProjectRoot Absolute path to the project root for boundary enforcement.
+ * @param ExcludePattern Regex pattern to skip specific files.
+ * @param InPlace Param to toggle in-place file modification.
+ * @param EnableAbiBreakingChanges Param to allow rewriting struct members.
+ * @param AuditMode Param to enable dry-run/audit mode.
+ * @param CurrentPhase The current phase of Cross-Translation Unit analysis.
+ * @param FactsOutputDir Directory path for reading/writing CTU facts.
+ * @param ReportFile File path for writing JSON change reports.
+ */
 TypeCorrectMatcher::TypeCorrectMatcher(
     clang::Rewriter &Rewriter, bool UseDecltype, bool ExpandAuto,
     std::string ProjectRoot, std::string ExcludePattern, bool InPlace,
@@ -63,17 +81,32 @@ TypeCorrectMatcher::TypeCorrectMatcher(
   EnsureGlobalFactsLoaded();
 }
 
+/**
+ * @brief Retrieves the list of changes identified during the matching process.
+ *
+ * @return A vector of change records suitable for reporting or auditing.
+ */
 std::vector<type_correct::ChangeRecord> TypeCorrectMatcher::GetChanges() const {
   return Changes;
 }
 
+/**
+ * @brief Loads external CTU facts from the 'global.facts' file if configured.
+ *
+ * Reads the global facts file from the directory specified by `FactsOutputDir`
+ * and populates the `GlobalFacts` map with USR-based type assertions.
+ * This is essential for the 'Apply' phase of CTU.
+ */
 void TypeCorrectMatcher::EnsureGlobalFactsLoaded() {
   if (FactsOutputDir.empty())
     return;
+
   if (!GlobalFacts.empty())
     return;
+
   std::vector<type_correct::ctu::SymbolFact> Raw;
   std::string GlobalFile = FactsOutputDir + "/global.facts";
+
   if (type_correct::ctu::FactManager::ReadFacts(GlobalFile, Raw)) {
     for (const auto &F : Raw)
       GlobalFacts[F.USR] = F;
@@ -84,6 +117,17 @@ void TypeCorrectMatcher::EnsureGlobalFactsLoaded() {
 // Constraint & Boundary Logic
 //-----------------------------------------------------------------------------
 
+/**
+ * @brief Registers a type constraint for a declaration in the solver.
+ *
+ * Performs boundary checks using `StructAnalyzer`. If the declaration is within
+ * a FIXED boundary (e.g., system header), it marks the node as fixed in the solver.
+ *
+ * @param Decl The named declaration (Variable or Function) to constrain.
+ * @param CandidateType The observed type from usage (e.g., the type of the RHS in an assignment).
+ * @param BaseExpr The expression triggering the constraint (used for context).
+ * @param Ctx The AST Context.
+ */
 void TypeCorrectMatcher::AddConstraint(const NamedDecl *Decl,
                                        QualType CandidateType,
                                        const Expr *BaseExpr, ASTContext *Ctx) {
@@ -109,6 +153,16 @@ void TypeCorrectMatcher::AddConstraint(const NamedDecl *Decl,
   Solver.AddConstraint(Decl, CandidateType, BaseExpr, Ctx);
 }
 
+/**
+ * @brief Registers a dependency relationship between two declarations.
+ *
+ * Used when one variable is assigned to another. It links their types in the
+ * graph solver so that type changes propagate (e.g., widening `a` implies widening `b` if `b = a`).
+ *
+ * @param Target The declaration receiving the value (LHS).
+ * @param Source The declaration providing the value (RHS).
+ * @param Ctx The AST Context.
+ */
 void TypeCorrectMatcher::AddUsageEdge(const NamedDecl *Target,
                                       const NamedDecl *Source,
                                       ASTContext *Ctx) {
@@ -117,19 +171,23 @@ void TypeCorrectMatcher::AddUsageEdge(const NamedDecl *Target,
 
   bool TFixed = StructEngine.IsBoundaryFixed(Target, Rewriter.getSourceMgr());
   QualType TType;
+
   if (const auto *V = dyn_cast<ValueDecl>(Target))
     TType = V->getType();
   else if (const auto *F = dyn_cast<FunctionDecl>(Target))
     TType = F->getReturnType();
+
   Solver.AddNode(Target, TType, TFixed);
   ApplyGlobalFactIfExists(Target, Ctx);
 
   bool SFixed = StructEngine.IsBoundaryFixed(Source, Rewriter.getSourceMgr());
   QualType SType;
+
   if (const auto *V = dyn_cast<ValueDecl>(Source))
     SType = V->getType();
   else if (const auto *F = dyn_cast<FunctionDecl>(Source))
     SType = F->getReturnType();
+
   Solver.AddNode(Source, SType, SFixed);
   ApplyGlobalFactIfExists(Source, Ctx);
 
@@ -140,14 +198,29 @@ void TypeCorrectMatcher::AddUsageEdge(const NamedDecl *Target,
 // Template & Type Resolution Logic (Rewriting)
 //-----------------------------------------------------------------------------
 
+/**
+ * @brief Recursively rewrites type locations in the AST.
+ *
+ * This function handles simple types as well as complex nested types like
+ * template specializations (`std::vector<int>`), elaborated types, and function pointers.
+ *
+ * In `AuditMode`, modifications are recorded but not physically written to the `Rewriter` buffer.
+ *
+ * @param TL The TypeLoc (location info) of the type to rewrite.
+ * @param TargetType The desired resulting type.
+ * @param Ctx The AST Context.
+ * @param BaseExpr An optional expression used for generating `decltype` syntax if enabled.
+ * @return true if any change was made or recorded.
+ */
 bool TypeCorrectMatcher::RecursivelyRewriteType(TypeLoc TL, QualType TargetType,
                                                 ASTContext *Ctx,
                                                 const Expr *BaseExpr) {
   if (TL.isNull() || TargetType.isNull())
     return false;
+
   if (TL.getAs<AutoTypeLoc>() && !ExpandAuto)
     return false;
-  
+
   // Macros are tricky; simplified handling for now
   if (TL.getBeginLoc().isMacroID()) {
     RewriteMacroType(TL.getBeginLoc(), TargetType, Ctx, BaseExpr);
@@ -156,7 +229,7 @@ bool TypeCorrectMatcher::RecursivelyRewriteType(TypeLoc TL, QualType TargetType,
 
   if (Ctx->hasSameType(TL.getType(), TargetType))
     return false;
-  
+
   if (auto QTL = TL.getAs<QualifiedTypeLoc>())
     return RecursivelyRewriteType(QTL.getUnqualifiedLoc(),
                                   TargetType.getUnqualifiedType(), Ctx,
@@ -170,9 +243,9 @@ bool TypeCorrectMatcher::RecursivelyRewriteType(TypeLoc TL, QualType TargetType,
 
     bool ChangedAny = false;
     const auto &TargetArgs = TargetTST->template_arguments();
+
     unsigned SourceIdx = 0;
     unsigned TargetIdx = 0;
-
     unsigned NumSourceArgs = TSTL.getNumArgs();
     unsigned NumTargetArgs = TargetArgs.size();
 
@@ -184,12 +257,14 @@ bool TypeCorrectMatcher::RecursivelyRewriteType(TypeLoc TL, QualType TargetType,
         for (const auto &PackElement : TargetArg.pack_elements()) {
           if (SourceIdx >= NumSourceArgs)
             break;
+
           SourceArgLoc = TSTL.getArgLoc(SourceIdx);
+
           if (PackElement.getKind() == TemplateArgument::Type &&
               SourceArgLoc.getArgument().getKind() == TemplateArgument::Type) {
-
             QualType OldT = SourceArgLoc.getTypeSourceInfo()->getType();
             QualType NewT = PackElement.getAsType();
+
             if (IsTemplateInstantiationSafe(TargetTST, OldT, NewT, Ctx)) {
               if (TypeSourceInfo *TSI = SourceArgLoc.getTypeSourceInfo()) {
                 if (RecursivelyRewriteType(TSI->getTypeLoc(), NewT, Ctx,
@@ -204,9 +279,9 @@ bool TypeCorrectMatcher::RecursivelyRewriteType(TypeLoc TL, QualType TargetType,
       } else {
         if (TargetArg.getKind() == TemplateArgument::Type &&
             SourceArgLoc.getArgument().getKind() == TemplateArgument::Type) {
-
           QualType OldT = SourceArgLoc.getTypeSourceInfo()->getType();
           QualType NewT = TargetArg.getAsType();
+
           if (IsTemplateInstantiationSafe(TargetTST, OldT, NewT, Ctx)) {
             if (TypeSourceInfo *TSI = SourceArgLoc.getTypeSourceInfo()) {
               if (RecursivelyRewriteType(TSI->getTypeLoc(), NewT, Ctx,
@@ -228,11 +303,14 @@ bool TypeCorrectMatcher::RecursivelyRewriteType(TypeLoc TL, QualType TargetType,
 
   if (auto FPTL = TL.getAs<FunctionProtoTypeLoc>()) {
     const auto *TargetFPT = TargetType->getAs<FunctionProtoType>();
+
     if (TargetFPT && FPTL.getNumParams() == TargetFPT->getNumParams()) {
       bool ChangedAny = false;
+
       if (RecursivelyRewriteType(FPTL.getReturnLoc(),
                                  TargetFPT->getReturnType(), Ctx, nullptr))
         ChangedAny = true;
+
       for (unsigned i = 0; i < FPTL.getNumParams(); ++i) {
         if (FPTL.getParam(i)->getTypeSourceInfo()) {
           if (RecursivelyRewriteType(FPTL.getParam(i)
@@ -247,26 +325,30 @@ bool TypeCorrectMatcher::RecursivelyRewriteType(TypeLoc TL, QualType TargetType,
   }
 
   // --- Final Leaf Rewrite logic with Audit Hooks ---
-  
+
   if (!IsModifiable(TL.getBeginLoc(), Rewriter.getSourceMgr()))
     return false;
 
   std::string NewTypeStr;
   bool UsingDecltype = false;
+
   if (UseDecltype && BaseExpr) {
     QualType ExprType = BaseExpr->getType().getCanonicalType();
     QualType TargetCan = TargetType.getCanonicalType();
+
     if (Ctx->hasSameType(ExprType, TargetCan)) {
       SourceManager &SM = Rewriter.getSourceMgr();
       CharSourceRange Range =
           CharSourceRange::getTokenRange(BaseExpr->getSourceRange());
       StringRef BaseText = Lexer::getSourceText(Range, SM, Ctx->getLangOpts());
+
       if (!BaseText.empty()) {
         NewTypeStr = "decltype(" + BaseText.str() + ")";
         UsingDecltype = true;
       }
     }
   }
+
   if (!UsingDecltype) {
     PrintingPolicy Policy = Ctx->getPrintingPolicy();
     Policy.SuppressScope = false;
@@ -285,13 +367,14 @@ bool TypeCorrectMatcher::RecursivelyRewriteType(TypeLoc TL, QualType TargetType,
   Record.Symbol = CurrentProcessingDecl ? CurrentProcessingDecl->getNameAsString() : "<?>";
   Record.OldType = OldTypeStr.str();
   Record.NewType = NewTypeStr;
+
   Changes.push_back(Record);
 
   // Application
   if (!AuditMode) {
-      Rewriter.ReplaceText(TL.getSourceRange(), NewTypeStr);
+    Rewriter.ReplaceText(TL.getSourceRange(), NewTypeStr);
   }
-  
+
   return true;
 }
 
@@ -299,6 +382,18 @@ bool TypeCorrectMatcher::RecursivelyRewriteType(TypeLoc TL, QualType TargetType,
 // Unified Dispatch
 //-----------------------------------------------------------------------------
 
+/**
+ * @brief Main declaration matching callback.
+ *
+ * Dispatches matched AST nodes to specific handlers:
+ * 1. Analysis of template member calls.
+ * 2. Truncation safety checks for member access.
+ * 3. Pointer arithmetic usage detection.
+ * 4. Variable assignment and initialization constraints.
+ * 5. Symbolic binary operator analysis.
+ *
+ * @param Result The match result provided by the AST Matcher logic.
+ */
 void TypeCorrectMatcher::run(const MatchFinder::MatchResult &Result) {
   ASTContext *Ctx = Result.Context;
 
@@ -307,15 +402,18 @@ void TypeCorrectMatcher::run(const MatchFinder::MatchResult &Result) {
           Result.Nodes.getNodeAs<CXXMemberCallExpr>("template_mem_call")) {
     const Expr *Obj = Call->getImplicitObjectArgument();
     const FunctionDecl *Callee = Call->getDirectCallee();
+
     if (Obj && Callee) {
       QualType ObjType = Obj->getType();
       if (const auto *TST = ObjType->getAs<TemplateSpecializationType>()) {
         unsigned NumArgs = Call->getNumArgs();
         unsigned NumParams = Callee->getNumParams();
+
         for (unsigned i = 0; i < std::min(NumArgs, NumParams); ++i) {
           const Expr *Arg = Call->getArg(i);
           const ParmVarDecl *Param = Callee->getParamDecl(i);
           QualType ArgT = GetTypeFromExpression(Arg->IgnoreParenImpCasts(), Ctx);
+
           if (ArgT.isNull())
             continue;
 
@@ -369,6 +467,7 @@ void TypeCorrectMatcher::run(const MatchFinder::MatchResult &Result) {
     Expr *LHS = BO->getLHS()->IgnoreParenImpCasts();
     Expr *RHS = BO->getRHS()->IgnoreParenImpCasts();
     const NamedDecl *OffsetVar = nullptr;
+
     if (LHS->getType()->isPointerType() && RHS->getType()->isIntegerType()) {
       if (const auto *DR = dyn_cast<DeclRefExpr>(RHS))
         OffsetVar = DR->getDecl();
@@ -377,6 +476,7 @@ void TypeCorrectMatcher::run(const MatchFinder::MatchResult &Result) {
       if (const auto *DR = dyn_cast<DeclRefExpr>(LHS))
         OffsetVar = DR->getDecl();
     }
+
     if (OffsetVar) {
       if (const auto *V = dyn_cast<ValueDecl>(OffsetVar)) {
         AddConstraint(OffsetVar, V->getType(), nullptr, Ctx);
@@ -387,9 +487,11 @@ void TypeCorrectMatcher::run(const MatchFinder::MatchResult &Result) {
 
   // --- 4. Standard Type Propagation (Assignments, Inits) ---
   const VarDecl *Var = Result.Nodes.getNodeAs<VarDecl>("bound_var_decl");
+
   if (Var && Result.Nodes.getNodeAs<Expr>("bound_init_expr")) {
     const Expr *Init = Result.Nodes.getNodeAs<Expr>("bound_init_expr");
     AddConstraint(Var, GetTypeFromExpression(Init, Ctx), nullptr, Ctx);
+
     if (const auto *DR = dyn_cast<DeclRefExpr>(Init->IgnoreParenImpCasts())) {
       if (const auto *Src = dyn_cast<NamedDecl>(DR->getDecl()))
         AddUsageEdge(Var, Src, Ctx);
@@ -403,7 +505,9 @@ void TypeCorrectMatcher::run(const MatchFinder::MatchResult &Result) {
     else if (const auto *AF =
                  Result.Nodes.getNodeAs<FieldDecl>("bound_assign_field"))
       Target = AF;
+
     const Expr *AssignExpr = Result.Nodes.getNodeAs<Expr>("bound_assign_expr");
+
     if (Target) {
       // Symbolic Analysis Hook
       bool HandledSymbolically = false;
@@ -416,6 +520,7 @@ void TypeCorrectMatcher::run(const MatchFinder::MatchResult &Result) {
           Op = type_correct::OpKind::Sub;
         else if (BO->getOpcode() == BO_Mul)
           Op = type_correct::OpKind::Mul;
+
         if (Op != type_correct::OpKind::None) {
           const NamedDecl *LHS = nullptr;
           const NamedDecl *RHS = nullptr;
@@ -425,6 +530,7 @@ void TypeCorrectMatcher::run(const MatchFinder::MatchResult &Result) {
           if (const auto *RDR =
                   dyn_cast<DeclRefExpr>(BO->getRHS()->IgnoreParenImpCasts()))
             RHS = RDR->getDecl();
+
           if (LHS && RHS) {
             if (const auto *ValTarget = dyn_cast<ValueDecl>(Target))
               Solver.AddNode(Target, ValTarget->getType(), false);
@@ -432,11 +538,13 @@ void TypeCorrectMatcher::run(const MatchFinder::MatchResult &Result) {
               Solver.AddNode(LHS, V->getType(), false);
             if (const auto *V = dyn_cast<ValueDecl>(RHS))
               Solver.AddNode(RHS, V->getType(), false);
+
             Solver.AddSymbolicConstraint(Target, Op, LHS, RHS);
             HandledSymbolically = true;
           }
         }
       }
+
       if (!HandledSymbolically) {
         AddConstraint(Target, GetTypeFromExpression(AssignExpr, Ctx), nullptr,
                       Ctx);
@@ -459,6 +567,18 @@ void TypeCorrectMatcher::run(const MatchFinder::MatchResult &Result) {
   }
 }
 
+/**
+ * @brief Called after parsing the entire Translation Unit.
+ *
+ * Triggers the solving phase and applies changes.
+ * 1. Collects unsafe fields from StructAnalyzer.
+ * 2. Runs the TypeSolver to determine optimal types.
+ * 3. Iterates over updates and calls `ResolveType` (rewrite logic).
+ * 4. Outputs audit tables or report files if configured.
+ * 5. Flushes rewrite buffers for CLI output or in-place modification.
+ *
+ * @param Ctx The AST Context.
+ */
 void TypeCorrectMatcher::onEndOfTranslationUnit(ASTContext &Ctx) {
   auto UnsafeFields = StructEngine.GetLikelyUnsafeFields();
   for (const auto *UnsafeField : UnsafeFields) {
@@ -477,8 +597,8 @@ void TypeCorrectMatcher::onEndOfTranslationUnit(ASTContext &Ctx) {
 
     // Set Context for Audit Logging
     CurrentProcessingDecl = Decl;
-
     QualType FinalType = State.ConstraintType;
+
     if (const auto *V = dyn_cast<VarDecl>(Decl)) {
       if (V->getTypeSourceInfo() &&
           V->getType().getCanonicalType() != FinalType.getCanonicalType()) {
@@ -490,7 +610,7 @@ void TypeCorrectMatcher::onEndOfTranslationUnit(ASTContext &Ctx) {
         ResolveType(FD->getTypeSourceInfo()->getTypeLoc(), FinalType, &Ctx,
                     nullptr, State.BaseExpr);
     }
-    
+
     CurrentProcessingDecl = nullptr;
   }
 
@@ -499,48 +619,58 @@ void TypeCorrectMatcher::onEndOfTranslationUnit(ASTContext &Ctx) {
 
   // Audit / Report Printing
   if (AuditMode || !ReportFile.empty()) {
-      if (AuditMode) {
-          llvm::outs() << "| File | Line | Symbol | Old Type | New Type |\n";
-          llvm::outs() << "|---|---|---|---|---|\n";
-          for(const auto &C : Changes) {
-              llvm::outs() << "| " << llvm::sys::path::filename(C.FilePath) << " | " 
-                           << C.Line << " | `" << C.Symbol << "` | `" 
-                           << C.OldType << "` | `" << C.NewType << "` |\n";
-          }
+    if (AuditMode) {
+      llvm::outs() << "| File | Line | Symbol | Old Type | New Type |\n";
+      llvm::outs() << "|---|---|---|---|---|\n";
+      for (const auto &C : Changes) {
+        llvm::outs() << "| " << llvm::sys::path::filename(C.FilePath) << " | "
+                     << C.Line << " | `" << C.Symbol << "` | `"
+                     << C.OldType << "` | `" << C.NewType << "` |\n";
       }
-      
-      if (!ReportFile.empty()) {
-          // JSON Output
-          std::error_code EC;
-          llvm::raw_fd_ostream OS(ReportFile, EC, llvm::sys::fs::OF_Append); // Simple append for multiple TUs, creates invalid JSON array but is line-delimited
-          if (!EC) {
-              for(const auto &C : Changes) {
-                  OS << "{ \"file\": \"" << C.FilePath 
-                     << "\", \"line\": " << C.Line 
-                     << ", \"symbol\": \"" << C.Symbol 
-                     << "\", \"old\": \"" << C.OldType 
-                     << "\", \"new\": \"" << C.NewType << "\" }\n";
-              }
-          }
+    }
+
+    if (!ReportFile.empty()) {
+      // JSON Output
+      std::error_code EC;
+      llvm::raw_fd_ostream OS(ReportFile, EC, llvm::sys::fs::OF_Append); // Simple append for multiple TUs, creates invalid JSON array but is line-delimited
+      if (!EC) {
+        for (const auto &C : Changes) {
+          OS << "{ \"file\": \"" << C.FilePath
+             << "\", \"line\": " << C.Line
+             << ", \"symbol\": \"" << C.Symbol
+             << "\", \"old\": \"" << C.OldType
+             << "\", \"new\": \"" << C.NewType << "\" }\n";
+        }
       }
+    }
   }
 
   // File Rewriting
   if (!AuditMode) {
-      if (InPlace && !ProjectRoot.empty())
-        Rewriter.overwriteChangedFiles();
-      else {
-        if (const llvm::RewriteBuffer *Buffer =
-                Rewriter.getRewriteBufferFor(SM.getMainFileID()))
-          Buffer->write(llvm::outs());
-        else
-          llvm::outs() << SM.getBufferOrFake(SM.getMainFileID()).getBuffer();
-        llvm::outs().flush();
-      }
+    if (InPlace && !ProjectRoot.empty())
+      Rewriter.overwriteChangedFiles();
+    else {
+      // Fix: Use 'auto' to handle namespace differences (clang::RewriteBuffer vs llvm::RewriteBuffer)
+      if (const auto *Buffer = Rewriter.getRewriteBufferFor(SM.getMainFileID()))
+        Buffer->write(llvm::outs());
+      else
+        llvm::outs() << SM.getBufferOrFake(SM.getMainFileID()).getBuffer();
+      llvm::outs().flush();
+    }
   }
 }
 
 // -- Helper Implementations --
+
+/**
+ * @brief High-level helper to trigger recursive type rewriting.
+ *
+ * @param OldLoc The source location of the original type.
+ * @param NewType The target type to write.
+ * @param Ctx AST Context.
+ * @param BoundVar The variable declaration context.
+ * @param BaseExpr Expression for decltype analysis.
+ */
 void TypeCorrectMatcher::ResolveType(const TypeLoc &OldLoc,
                                      const QualType &NewType, ASTContext *Ctx,
                                      const VarDecl *BoundVar,
@@ -548,68 +678,114 @@ void TypeCorrectMatcher::ResolveType(const TypeLoc &OldLoc,
   RecursivelyRewriteType(OldLoc, NewType, Ctx, BaseExpr);
 }
 
+/**
+ * @brief Handles rewriting of types embedded within macros.
+ *
+ * Caution: Rewriting macros is dangerous. This implementation performs
+ * basic safety checks and supports recording changes for Audit modes.
+ *
+ * @param Loc The macro location.
+ * @param NewType The target type.
+ * @param Ctx AST Context.
+ * @param BaseExpr Related expression.
+ */
 void TypeCorrectMatcher::RewriteMacroType(SourceLocation Loc,
                                           const QualType &NewType,
                                           ASTContext *Ctx,
                                           const Expr *BaseExpr) {
   if (!Loc.isMacroID())
     return;
+
   SourceManager &SM = Rewriter.getSourceMgr();
   SourceLocation SpellingLoc = SM.getSpellingLoc(Loc);
+
   if (!IsModifiable(SpellingLoc, SM))
     return;
-  
+
   std::string NewTypeStr = NewType.getAsString(Ctx->getPrintingPolicy());
 
   // In Audit mode, just record it roughly
   if (AuditMode) {
-      type_correct::ChangeRecord Record;
-      Record.FilePath = SM.getFilename(SpellingLoc).str();
-      Record.Line = SM.getPresumedLineNumber(SpellingLoc);
-      Record.Symbol = CurrentProcessingDecl ? CurrentProcessingDecl->getNameAsString() : "MACRO";
-      Record.OldType = "MACRO_EXPANSION"; 
-      Record.NewType = NewTypeStr;
-      Changes.push_back(Record);
-      return; 
+    type_correct::ChangeRecord Record;
+    Record.FilePath = SM.getFilename(SpellingLoc).str();
+    Record.Line = SM.getPresumedLineNumber(SpellingLoc);
+    Record.Symbol = CurrentProcessingDecl ? CurrentProcessingDecl->getNameAsString() : "MACRO";
+    Record.OldType = "MACRO_EXPANSION";
+    Record.NewType = NewTypeStr;
+    Changes.push_back(Record);
+    return;
   }
 
   // Placeholder logic for macro text length
-  unsigned TokenLength = 3; 
+  unsigned TokenLength = 3;
+
   if (TokenLength > 0)
     Rewriter.ReplaceText(SpellingLoc, TokenLength, NewTypeStr);
 }
 
+/**
+ * @brief Checks if a source location is safe to modify (User Code).
+ *
+ * Checks against the `ProjectRoot` configuration. If source is outside,
+ * returns false.
+ *
+ * @param Loc The source location.
+ * @param SM Source Manager.
+ * @return true if safe to modify.
+ */
 bool TypeCorrectMatcher::IsModifiable(SourceLocation Loc,
                                       const SourceManager &SM) {
   if (SM.isWrittenInMainFile(Loc))
     return true;
+
   if (!ProjectRoot.empty()) {
     FileID FID = SM.getFileID(SM.getSpellingLoc(Loc));
     auto EntryRef = SM.getFileEntryRefForID(FID);
+
     if (!EntryRef)
       return false;
+
     llvm::SmallString<128> AbsPath(EntryRef->getName());
     SM.getFileManager().makeAbsolutePath(AbsPath);
+
     if (!llvm::StringRef(AbsPath).starts_with(ProjectRoot))
       return false;
   }
   return true;
 }
 
+/**
+ * @brief Parses a string representation of a type into a QualType.
+ *
+ * Currently simplifies to returning `size_t` (SizeType) for matching strings.
+ *
+ * @param TypeName The string (e.g., "size_t").
+ * @param Ctx AST Context.
+ * @return QualType The resolved type.
+ */
 clang::QualType TypeCorrectMatcher::ParseTypeString(const std::string &TypeName,
                                                     clang::ASTContext *Ctx) {
   if (TypeName == "size_t")
     return Ctx->getSizeType();
+
   return Ctx->getSizeType();
 }
 
+/**
+ * @brief Applies an external CTU fact (if one exists) to a local declaration.
+ *
+ * @param Decl The local declaration.
+ * @param Ctx AST Context.
+ */
 void TypeCorrectMatcher::ApplyGlobalFactIfExists(const clang::NamedDecl *Decl,
                                                  clang::ASTContext *Ctx) {
   if (!Decl || GlobalFacts.empty())
     return;
+
   llvm::SmallString<128> USR;
   if (index::generateUSRForDecl(Decl, USR))
     return;
+
   auto It = GlobalFacts.find(USR.str().str());
   if (It != GlobalFacts.end()) {
     QualType T = ParseTypeString(It->second.TypeName, Ctx);
@@ -617,17 +793,33 @@ void TypeCorrectMatcher::ApplyGlobalFactIfExists(const clang::NamedDecl *Decl,
   }
 }
 
+/**
+ * @brief Helper to retrieve declaration name (stub).
+ * @param D Named declaration.
+ * @return StringRef pointer.
+ */
 const llvm::StringRef *GetDeclName(const clang::NamedDecl *D) { return nullptr; }
 
 // -- Safety Checks --
 
+/**
+ * @brief Determines if replacing `OldType` with `NewType` in a template instantiation is safe.
+ *
+ * Checks if the rewrite would trigger a different template specialization than original.
+ *
+ * @param TST The template specialization type.
+ * @param OldType Original argument.
+ * @param NewType New argument.
+ * @param Ctx AST Context.
+ * @return true if the active specialization remains the same.
+ */
 bool TypeCorrectMatcher::IsTemplateInstantiationSafe(
     const TemplateSpecializationType *TST, QualType OldType, QualType NewType,
     ASTContext *Ctx) {
-
   TemplateName TN = TST->getTemplateName();
   ClassTemplateDecl *TD =
       dyn_cast_or_null<ClassTemplateDecl>(TN.getAsTemplateDecl());
+
   if (!TD)
     return true;
 
@@ -651,10 +843,16 @@ bool TypeCorrectMatcher::IsTemplateInstantiationSafe(
   return SpecOld == SpecNew;
 }
 
+/**
+ * @brief Finds the best matching partial specialization for a set of arguments.
+ *
+ * @param Template The class template.
+ * @param Args The template arguments.
+ * @return The matching specialization declaration or nullptr.
+ */
 const ClassTemplatePartialSpecializationDecl *
 TypeCorrectMatcher::DetermineActiveSpecialization(
     ClassTemplateDecl *Template, const llvm::ArrayRef<TemplateArgument> &Args) {
-
   for (ClassTemplateSpecializationDecl *Spec : Template->specializations()) {
     auto *PS = dyn_cast<ClassTemplatePartialSpecializationDecl>(Spec);
     if (!PS)
@@ -668,9 +866,9 @@ TypeCorrectMatcher::DetermineActiveSpecialization(
     for (unsigned i = 0; i < Args.size(); ++i) {
       if (PSArgs.get(i).getKind() == TemplateArgument::Type &&
           Args[i].getKind() == TemplateArgument::Type) {
-
         QualType PSA = PSArgs.get(i).getAsType();
         QualType A = Args[i].getAsType();
+
         if (!PSA->isDependentType()) {
           if (PSA.getCanonicalType() != A.getCanonicalType()) {
             Matches = false;
@@ -679,12 +877,22 @@ TypeCorrectMatcher::DetermineActiveSpecialization(
         }
       }
     }
+
     if (Matches)
       return PS;
   }
   return nullptr;
 }
 
+/**
+ * @brief Constructs a new Template type with rewritten arguments.
+ *
+ * @param ContainerType The original container type.
+ * @param OldType The type to replace.
+ * @param NewValueType The replacement type.
+ * @param Ctx AST Context.
+ * @return The new QualType.
+ */
 clang::QualType TypeCorrectMatcher::SynthesizeContainerType(
     clang::QualType ContainerType, clang::QualType OldType,
     clang::QualType NewValueType, clang::ASTContext *Ctx) {
@@ -694,21 +902,17 @@ clang::QualType TypeCorrectMatcher::SynthesizeContainerType(
 
   llvm::SmallVector<TemplateArgument, 4> NewArgs;
   llvm::SmallVector<TemplateArgument, 4> CanonArgs;
-
   bool Changed = false;
 
   for (const auto &Arg : TST->template_arguments()) {
     TemplateArgument LocArg = Arg;
-
     if (Arg.getKind() == TemplateArgument::Type &&
         Ctx->hasSameType(Arg.getAsType(), OldType)) {
 
       LocArg = TemplateArgument(NewValueType);
       Changed = true;
     }
-
     NewArgs.push_back(LocArg);
-
     if (LocArg.getKind() == TemplateArgument::Type) {
       CanonArgs.push_back(
           TemplateArgument(LocArg.getAsType().getCanonicalType()));
@@ -720,11 +924,22 @@ clang::QualType TypeCorrectMatcher::SynthesizeContainerType(
   if (!Changed)
     return ContainerType;
 
-  return Ctx->getTemplateSpecializationType(TST->getTemplateName(), NewArgs,
-                                            CanonArgs);
+// Fix: Conditional API usage based on Clang version
+// LLVM 20+ introduced a signature change that strictly separates sugared vs canonical args
+#if CLANG_VERSION_MAJOR >= 20
+  return Ctx->getTemplateSpecializationType(TST->getTemplateName(), NewArgs, CanonArgs);
+#else
+  // Older LLVM requires creating the canonical type first, then passing it as the underlying type
+  clang::QualType CanonType = Ctx->getTemplateSpecializationType(TST->getTemplateName(), CanonArgs);
+  return Ctx->getTemplateSpecializationType(TST->getTemplateName(), NewArgs, CanonType);
+#endif
 }
 
 // Unused stubs
+
+/**
+ * @brief Stub for std::function synthesis (not yet implemented).
+ */
 clang::QualType TypeCorrectMatcher::SynthesizeStdFunctionType(
     clang::QualType A, const clang::CXXMethodDecl * /*B*/,
     const std::map<const clang::NamedDecl *, type_correct::NodeState> & /*C*/,
@@ -732,6 +947,12 @@ clang::QualType TypeCorrectMatcher::SynthesizeStdFunctionType(
   return A;
 }
 
+/**
+ * @brief Extracts the type from an expression, drilling through casts and calls.
+ * @param E The expression.
+ * @param Ctx The AST Context.
+ * @return The underlying type or null QualType.
+ */
 clang::QualType TypeCorrectMatcher::GetTypeFromExpression(const clang::Expr *E,
                                                           clang::ASTContext *Ctx) {
   if (const auto *DR = dyn_cast<DeclRefExpr>(E)) {
@@ -745,19 +966,30 @@ clang::QualType TypeCorrectMatcher::GetTypeFromExpression(const clang::Expr *E,
   return {};
 }
 
+/** @brief Stub for handling MultiDecl statements (e.g. int a, b;). */
 void TypeCorrectMatcher::HandleMultiDecl(const clang::DeclStmt *DS,
                                          clang::ASTContext *Ctx) {}
+
+/** @brief Stub for injecting explicit casts in code. */
 void TypeCorrectMatcher::InjectCast(const clang::Expr *ExprToCast,
                                     const clang::QualType &TargetType,
                                     clang::ASTContext *Ctx) {}
+
+/** @brief Stub for removing explicit casts. */
 void TypeCorrectMatcher::RemoveExplicitCast(const clang::ExplicitCastExpr *Cast,
                                             clang::ASTContext *Ctx) {}
+
+/** @brief Stub for printf argument scanning. */
 void TypeCorrectMatcher::ScanPrintfArgs(
     const clang::StringLiteral *FormatStr,
     const std::vector<const clang::Expr *> &Args, clang::ASTContext *Ctx) {}
+
+/** @brief Stub for scanf argument scanning. */
 void TypeCorrectMatcher::ScanScanfArgs(
     const clang::StringLiteral *FormatStr,
     const std::vector<const clang::Expr *> &Args, clang::ASTContext *Ctx) {}
+
+/** @brief Stub for updating printf format specifiers (e.g. %d -> %zu). */
 void TypeCorrectMatcher::UpdateFormatSpecifiers(
     const clang::NamedDecl *Decl, const clang::QualType &NewType,
     clang::ASTContext *Ctx) {}
@@ -766,6 +998,18 @@ void TypeCorrectMatcher::UpdateFormatSpecifiers(
 // Consumer Implementation
 //-----------------------------------------------------------------------------
 
+/**
+ * @brief Constructs the ASTConsumer and registers all AST Matchers.
+ *
+ * The consumer sets up matchers for:
+ * - Member calls (template analysis).
+ * - Function bodies containing member access (truncation analysis).
+ * - Array subscripts and Pointer arithmetic.
+ * - Variable initialization and Assignment operators.
+ * - Lambda expressions and std::function usage.
+ *
+ *Params map directly to `TypeCorrectMatcher`.
+ */
 TypeCorrectASTConsumer::TypeCorrectASTConsumer(
     clang::Rewriter &Rewriter, bool UseDecltype, bool ExpandAuto,
     std::string ProjectRoot, std::string ExcludePattern, bool InPlace,
@@ -780,12 +1024,15 @@ TypeCorrectASTConsumer::TypeCorrectASTConsumer(
   // Register All Matchers
   Finder.addMatcher(
       cxxMemberCallExpr().bind("template_mem_call"), &Handler);
+
   Finder.addMatcher(
       functionDecl(hasBody(forEachDescendant(
                        memberExpr(member(fieldDecl())).bind("any_access_member"))))
           .bind("enclosing_func"),
       &Handler);
+
   Finder.addMatcher(arraySubscriptExpr().bind("generic_subscript"), &Handler);
+
   Finder.addMatcher(
       binaryOperator(hasEitherOperand(hasType(pointerType()))).bind("ptr_arith"),
       &Handler);
@@ -808,14 +1055,23 @@ TypeCorrectASTConsumer::TypeCorrectASTConsumer(
       &Handler);
 
   Finder.addMatcher(varDecl().bind("bound_var_decl"), &Handler);
+
   Finder.addMatcher(lambdaExpr().bind("lambda"), &Handler);
+
   Finder.addMatcher(
       varDecl(hasType(recordDecl(hasName("::std::function"))))
           .bind("std_func_var"),
       &Handler);
 }
 
+/**
+ * @class TCPluginAction
+ * @brief Clang Plugin Entry Point.
+ *
+ * Handles parsing of plugin command line arguments and creating the ASTConsumer.
+ */
 class TCPluginAction : public clang::PluginASTAction {
+
 public:
   bool UseDecltype = false;
   bool ExpandAuto = false;
@@ -828,6 +1084,12 @@ public:
   std::string FactsOutputDir;
   std::string ReportFile;
 
+  /**
+   * @brief Parses args from the compiler invocation.
+   * @param CI Compiler Instance.
+   * @param args List of string arguments.
+   * @return true on success.
+   */
   bool ParseArgs(const clang::CompilerInstance &CI,
                  const std::vector<std::string> &args) override {
     for (size_t i = 0; i < args.size(); ++i) {
@@ -862,6 +1124,13 @@ public:
     }
     return true;
   }
+
+  /**
+   * @brief Creates the TypeCorrectASTConsumer.
+   * @param CI Compiler Instance.
+   * @param file File path being processed.
+   * @return The unique pointer to the consumer.
+   */
   std::unique_ptr<clang::ASTConsumer>
   CreateASTConsumer(clang::CompilerInstance &CI, llvm::StringRef file) override {
     RewriterForTC.setSourceMgr(CI.getSourceManager(), CI.getLangOpts());
@@ -875,5 +1144,8 @@ private:
   clang::Rewriter RewriterForTC;
 };
 
+/**
+ * @brief Registers the plugin with Clang.
+ */
 static clang::FrontendPluginRegistry::Add<TCPluginAction>
     X("TypeCorrect", "Type Correction Plugin");

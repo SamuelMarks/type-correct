@@ -138,17 +138,17 @@ static const char *MoreHelp = R"(
 EXAMPLES:
 
   1. Basic Usage (Dry Run / stdout):
-     $ ct-type-correct file.cpp
+     $ type_correct_cli file.cpp
 
   2. Apply changes in-place:
-     $ ct-type-correct -i file.cpp
+     $ type_correct_cli -i file.cpp
 
   3. Audit a project (See what would change):
-     $ ct-type-correct --audit --project-root=$(pwd) src/*.cpp
+     $ type_correct_cli --audit --project-root=$(pwd) src/*.cpp
 
   4. Iterative Global Analysis (Recommended for large projects):
      $ mkdir facts
-     $ ct-type-correct --phase=iterative --facts-dir=facts --project-root=$(pwd) src/*.cpp
+     $ type_correct_cli --phase=iterative --facts-dir=facts --project-root=$(pwd) src/*.cpp
 
 AUTHOR:
   SamuelMarks
