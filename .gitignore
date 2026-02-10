@@ -1,3 +1,5 @@
+__pycache__
+Testing/
 *build*
 .idea
 .vscode

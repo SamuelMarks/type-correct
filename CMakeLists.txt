@@ -163,6 +163,19 @@ if (NOT CMAKE_BUILD_TYPE)
             STRING "Build type (default Debug):" FORCE)
 endif (NOT CMAKE_BUILD_TYPE)
 
+# Coverage (LLVM/Clang)
+# ---------------------
+option(TYPE_CORRECT_ENABLE_COVERAGE "Enable LLVM/Clang coverage instrumentation" OFF)
+if (TYPE_CORRECT_ENABLE_COVERAGE)
+    if (CMAKE_C_COMPILER_ID MATCHES "Clang" OR
+        CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        add_compile_options(-fprofile-instr-generate -fcoverage-mapping)
+        add_link_options(-fprofile-instr-generate -fcoverage-mapping)
+    else ()
+        message(FATAL_ERROR "Coverage requires Clang/AppleClang.")
+    endif ()
+endif ()
+
 # Compiler Flags Interface Library
 # --------------------------------
 # Defines an interface library to centrally manage compiler flags. Sub-targets
@@ -241,6 +254,33 @@ include(CTest)
 if (BUILD_TESTING)
     add_subdirectory("${PROJECT_UNDER_NAME}/tests")
 endif (BUILD_TESTING)
+
+# Coverage + Doc Coverage Targets
+# -------------------------------
+if (TYPE_CORRECT_ENABLE_COVERAGE)
+    add_custom_target(coverage
+            COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/scripts/coverage.sh" "${CMAKE_CURRENT_BINARY_DIR}"
+            WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+            DEPENDS type_correct_cli test_type_correct
+            USES_TERMINAL
+    )
+endif ()
+
+option(TYPE_CORRECT_ENABLE_DOC_COVERAGE "Enable Doxygen doc coverage target" OFF)
+if (TYPE_CORRECT_ENABLE_DOC_COVERAGE)
+    find_package(Doxygen REQUIRED)
+    set(DOCS_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/docs")
+    configure_file(
+            "${CMAKE_CURRENT_SOURCE_DIR}/docs/Doxyfile.in"
+            "${CMAKE_CURRENT_BINARY_DIR}/Doxyfile"
+            @ONLY
+    )
+    add_custom_target(doc-coverage
+            COMMAND "${DOXYGEN_EXECUTABLE}" "${CMAKE_CURRENT_BINARY_DIR}/Doxyfile"
+            WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+            USES_TERMINAL
+    )
+endif ()
 
 # Packaging and Installation
 # --------------------------

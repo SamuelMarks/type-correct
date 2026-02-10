@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+BUILD_DIR="${BUILD_DIR:-${ROOT}/build}"
+
+bash "${ROOT}/scripts/coverage_badges.sh" "${BUILD_DIR}"
+
+git add "${ROOT}/README.md"

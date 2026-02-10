@@ -14,7 +14,7 @@
  *    (System/Third-Party) or "Modifiable" (User).
  *
  * @author SamuelMarks
- * @license CC0
+ * @copyright CC0
  */
 
 #ifndef TYPE_CORRECT_STRUCT_ANALYZER_H
@@ -46,11 +46,11 @@ enum class BoundaryStatus {
 /**
  * @class StructAnalyzer
  * @brief Comprehensive Safety Engine for Decls (Structs, Classes, Functions,
- * Globals).
+ * Globals, Typedefs).
  *
- * Handles boundary detection for named declarations, ensuring we don't modify
- * system headers or libraries that include user headers (viral fixedness).
- * It now includes CMake build system awareness to identify vendored code.
+ * Handles boundary detection for named declarations, enduring we don't modify
+ * system headers or libraries. It supports the Punt-to-Typedef strategy by
+ * validating if a typedef root is writable.
  */
 class TYPE_CORRECT_EXPORT StructAnalyzer {
 public:
@@ -76,6 +76,19 @@ public:
    * @return true If rewriting is permitted.
    */
   bool CanRewriteField(const clang::FieldDecl *Field, clang::SourceManager &SM);
+
+  /**
+   * @brief Determines if a Typedef declaration can be safely rewritten.
+   * This is critical for the "Punt-to-Typedef" strategy. If a typedef
+   * is in a system header or vendor library, it cannot count as a modifiable
+   * root.
+   *
+   * @param TD The typedef declaration.
+   * @param SM The SourceManager.
+   * @return true if the typedef is user-code and safe to update.
+   */
+  bool CanRewriteTypedef(const clang::TypedefNameDecl *TD,
+                         clang::SourceManager &SM);
 
   /**
    * @brief Master Safety Check: Is this Symbol Fixed?
@@ -117,61 +130,20 @@ public:
   std::set<const clang::FieldDecl *> GetLikelyUnsafeFields() const;
 
 private:
-  /** @brief Logic toggle for ABI breaking changes. */
   bool AllowABIChanges;
-
-  /** @brief Logic toggle to start rewriting recklessly (ignoring boundaries).
-   */
   bool ForceRewrite;
-
-  /** @brief Root directory for project-scoped checks. */
   std::string ProjectRoot;
 
-  /** @brief Set of fields determined to be unsafe for widening due to
-   * truncation usage. */
   std::set<const clang::FieldDecl *> TruncationUnsafeFields;
-
-  /** @brief Cache of analyzed (Field, Function) pairs to avoid redundant CFG
-   * traversals. */
   std::set<std::pair<const clang::FieldDecl *, const clang::FunctionDecl *>>
       AnalyzedCache;
 
-  /** @brief Cache for file-level boundary status. */
+  // Caching mechanism for file boundaries
   llvm::DenseMap<clang::FileID, BoundaryStatus> BoundaryCache;
-
-  /** @brief Cache for directory-level CMake analysis (Dir path -> IsExternal).
-   */
   mutable llvm::StringMap<bool> CMakePathCache;
 
-  /**
-   * @brief Recursive inclusion graph walker.
-   *
-   * Determines if a FileID is Fixed by checking:
-   * 1. Is it a System Header?
-   * 2. Is it in a "Fixed" path pattern (node_modules, external)?
-   * 3. Is it included BY a Fixed file? (Viral propagation).
-   *
-   * @param FID The file to check.
-   * @param SM Source Manager.
-   * @return BoundaryStatus The determined state.
-   */
   BoundaryStatus CheckFileBoundary(clang::FileID FID, clang::SourceManager &SM);
-
-  /**
-   * @brief Checks if a path matches heuristic patterns for External libraries,
-   * including CMake analysis.
-   * @param Path The absolute file path.
-   * @return true If it looks like a third-party library.
-   */
   bool IsExternalPath(llvm::StringRef Path) const;
-
-  /**
-   * @brief Scans the directory tree upwards for a CMakeLists.txt that defines
-   * external/vendored content.
-   *
-   * @param FileDir The directory of the source file being analyzed.
-   * @return true If an applicable CMakeLists.txt marks this scope as external.
-   */
   bool AnalyzeCMakeDependency(llvm::StringRef FileDir) const;
 };
 

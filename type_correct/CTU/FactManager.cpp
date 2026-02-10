@@ -3,6 +3,9 @@
  * @brief Implementation of CTU Fact serialization, merging, and convergence
  * logic.
  *
+ * Implements the text-based protocol for exchanging type facts between
+ * tool invocations.
+ *
  * @author SamuelMarks
  * @license CC0
  */
@@ -18,8 +21,33 @@
 namespace type_correct {
 namespace ctu {
 
-// Format: USR <TAB> TypeName <TAB> IsField (1/0)
+// Format: USR <TAB> TypeName <TAB> IsField(int) <TAB> IsTypedef(int)
 static const char DELIMITER = '\t';
+
+/**
+ * @brief Ranking function for standard integer width hierarchy.
+ * Used during the Merge phase to determine the "winner".
+ *
+ * @param T The type string.
+ * @return int Rank (higher is wider).
+ */
+static int GetTypeRank(const std::string &T) {
+  if (T == "unsigned char" || T == "char")
+    return 1;
+  if (T == "short" || T == "unsigned short")
+    return 2;
+  if (T == "int" || T == "unsigned int" || T == "unsigned")
+    return 3;
+  if (T == "long" || T == "unsigned long")
+    return 4;
+  if (T == "size_t" || T == "std::size_t")
+    return 5;
+  if (T == "long long" || T == "unsigned long long")
+    return 6;
+  if (T == "ptrdiff_t" || T == "std::ptrdiff_t")
+    return 5; // Treat equivalent to size_t magnitude
+  return 0;   // Unknown
+}
 
 bool FactManager::WriteFacts(const std::string &FilePath,
                              const std::map<std::string, SymbolFact> &Facts) {
@@ -31,8 +59,10 @@ bool FactManager::WriteFacts(const std::string &FilePath,
 
   for (const auto &Pair : Facts) {
     const SymbolFact &F = Pair.second;
+    // Format: USR | Type | IsField | IsTypedef
     Out << F.USR << DELIMITER << F.TypeName << DELIMITER
-        << (F.IsField ? "1" : "0") << "\n";
+        << (F.IsField ? "1" : "0") << DELIMITER << (F.IsTypedef ? "1" : "0")
+        << "\n";
   }
 
   Out.close();
@@ -43,8 +73,6 @@ bool FactManager::ReadFacts(const std::string &FilePath,
                             std::vector<SymbolFact> &OutFacts) {
   std::ifstream In(FilePath);
   if (!In.is_open()) {
-    // It is not necessarily an error if a file is missing in some contexts
-    // (e.g. first run of global), but usually we expect files to exist.
     return false;
   }
 
@@ -66,29 +94,14 @@ bool FactManager::ReadFacts(const std::string &FilePath,
       Fact.USR = Parts[0];
       Fact.TypeName = Parts[1];
       Fact.IsField = (Parts[2] == "1");
+      // Optional 4th column for backward compatibility with older fact files
+      if (Parts.size() >= 4) {
+        Fact.IsTypedef = (Parts[3] == "1");
+      }
       OutFacts.push_back(Fact);
     }
   }
   return true;
-}
-
-// Rudimentary ranking for type width
-static int GetTypeRank(const std::string &T) {
-  if (T == "unsigned char" || T == "char")
-    return 1;
-  if (T == "short" || T == "unsigned short")
-    return 2;
-  if (T == "int" || T == "unsigned int" || T == "unsigned")
-    return 3;
-  if (T == "long" || T == "unsigned long")
-    return 4;
-  if (T == "size_t" || T == "std::size_t")
-    return 5;
-  if (T == "long long" || T == "unsigned long long")
-    return 6;
-  if (T == "ptrdiff_t" || T == "std::ptrdiff_t")
-    return 5; // Treat equivalent to size_t
-  return 0;   // Unknown
 }
 
 std::map<std::string, SymbolFact>
@@ -107,8 +120,9 @@ FactManager::MergeFacts(const std::vector<SymbolFact> &RawFacts) {
       if (NewRank > CurrentRank) {
         It->second.TypeName = Raw.TypeName;
       }
-      // If ranks are equal, we effectively keep the existing one (first writer
-      // wins or existing global wins).
+      // Preserve "IsTypedef" metadata if either source has it
+      if (Raw.IsTypedef)
+        It->second.IsTypedef = true;
     }
   }
   return Merged;
@@ -117,21 +131,16 @@ FactManager::MergeFacts(const std::vector<SymbolFact> &RawFacts) {
 bool FactManager::IsConvergenceReached(
     const std::string &GlobalFilePath,
     const std::map<std::string, SymbolFact> &NewFacts) {
-  // 1. Read existing facts
+  // 1. Read existing facts from the previous global state
   std::vector<SymbolFact> ExistingVector;
   if (!ReadFacts(GlobalFilePath, ExistingVector)) {
-    // If we can't read the old file, we definitely haven't converged (new state
-    // created).
+    // If the file doesn't exist, we haven't converged (initial state)
     return false;
   }
 
-  // 2. Convert vector to map for comparison (handling duplicates if file is
-  // malformed)
+  // 2. Convert vector to map for O(1) comparison
   std::map<std::string, SymbolFact> ExistingMap;
   for (const auto &F : ExistingVector) {
-    // We assume file is clean; if duplicates exist, last write wins in logic,
-    // but MergeFacts logic is preferred. Here we are just checking state
-    // equality.
     ExistingMap[F.USR] = F;
   }
 
@@ -140,9 +149,7 @@ bool FactManager::IsConvergenceReached(
     return false;
   }
 
-  // 4. Compare elements
-  // operator== for map compares element-by-element using ValueType's
-  // operator==.
+  // 4. Deep Compare elements (TypeName, Flags)
   return ExistingMap == NewFacts;
 }
 
