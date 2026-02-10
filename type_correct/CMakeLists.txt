@@ -20,6 +20,7 @@ set(LIBRARY_NAME "${PROJECT_UNDER_NAME}")
 # Variable: Header_Files
 # Description: List of public headers exposed by the library. 
 set(Header_Files 
+    "ClangCompat.h"
     "TypeCorrect.h"
     "StructAnalyzer.h"
     "TypeSolver.h"

@@ -6,6 +6,7 @@
  */
 
 #include "TypeCorrect.h"
+#include "ClangCompat.h"
 
 #include <algorithm>
 #include <clang/AST/ASTContext.h>
@@ -626,11 +627,6 @@ std::vector<type_correct::ChangeRecord> TypeCorrectMatcher::GetChanges() const {
 //------------------------------------------------------------------------------
 void TypeCorrectMatcher::run(
     const MatchFinder::MatchResult &Result) {
-
-  ASTContext *Ctx = Result.Context;
-  if (!Ctx)
-    return;
-
   if (const auto *Cast =
           Result.Nodes.getNodeAs<ExplicitCastExpr>("explicit_cast")) {
     ExplicitCasts.push_back(Cast);
@@ -649,6 +645,8 @@ void TypeCorrectMatcher::ProcessRedundantCasts(ASTContext &Ctx) {
     if (!Cast || !Seen.insert(Cast).second)
       continue;
 
+    const Expr *SubExpr = Cast->getSubExpr();
+
     SourceLocation Begin = Cast->getBeginLoc();
     SourceLocation End = Cast->getEndLoc();
     if (Begin.isInvalid() || End.isInvalid())
@@ -658,10 +656,6 @@ void TypeCorrectMatcher::ProcessRedundantCasts(ASTContext &Ctx) {
     if (SM.getFileID(Begin) != SM.getMainFileID())
       continue;
 
-    const Expr *SubExpr = Cast->getSubExpr();
-    if (!SubExpr)
-      continue;
-
     SourceLocation SubBegin = SubExpr->getBeginLoc();
     SourceLocation SubEnd = SubExpr->getEndLoc();
     if (SubBegin.isInvalid() || SubEnd.isInvalid())
@@ -669,18 +663,29 @@ void TypeCorrectMatcher::ProcessRedundantCasts(ASTContext &Ctx) {
     if (SubBegin.isMacroID() || SubEnd.isMacroID())
       continue;
 
-    QualType CastType = NormalizeType(Cast->getTypeAsWritten());
+    const TypeSourceInfo *CastTypeInfo = Cast->getTypeInfoAsWritten();
+    if (!CastTypeInfo)
+      continue;
+    QualType CastType = NormalizeType(CastTypeInfo->getType());
     QualType SubType = NormalizeType(SubExpr->getType());
     if (CastType.isNull() || SubType.isNull())
       continue;
     if (!Ctx.hasSameType(CastType, SubType))
       continue;
 
-    std::string SubText =
-        Lexer::getSourceText(
-            CharSourceRange::getTokenRange(SubExpr->getSourceRange()), SM,
-            LangOpts)
-            .str();
+    bool InvalidBuffer = false;
+    llvm::StringRef Buffer = SM.getBufferData(SM.getFileID(SubBegin),
+                                              &InvalidBuffer);
+    if (InvalidBuffer)
+      continue;
+
+    std::string SubText;
+    if (!Buffer.empty()) {
+      SubText = Lexer::getSourceText(
+                    CharSourceRange::getTokenRange(SubExpr->getSourceRange()),
+                    SM, LangOpts)
+                    .str();
+    }
     if (SubText.empty())
       continue;
 
@@ -722,8 +727,7 @@ void TypeCorrectMatcher::onEndOfTranslationUnit(ASTContext &Ctx) {
   SourceManager &SM = Rewriter.getSourceMgr();
 
   if (!InPlace) {
-    if (const llvm::RewriteBuffer *Buf =
-            Rewriter.getRewriteBufferFor(SM.getMainFileID())) {
+    if (const auto *Buf = Rewriter.getRewriteBufferFor(SM.getMainFileID())) {
       Buf->write(llvm::outs());
     } else {
       llvm::outs() << SM.getBufferData(SM.getMainFileID());
@@ -775,25 +779,33 @@ void TypeCorrectASTConsumer::HandleTranslationUnit(ASTContext &Ctx) {
 #ifdef TYPE_CORRECT_TEST
 namespace type_correct::test_support {
 
-TypeLoc GetBaseTypeLocForTest(TypeLoc TL) { return GetBaseTypeLoc(TL); }
+TYPE_CORRECT_EXPORT TypeLoc GetBaseTypeLocForTest(TypeLoc TL) {
+  return GetBaseTypeLoc(TL);
+}
 
-QualType NormalizeTypeForTest(QualType T) { return NormalizeType(T); }
+TYPE_CORRECT_EXPORT QualType NormalizeTypeForTest(QualType T) {
+  return NormalizeType(T);
+}
 
-QualType GetWiderTypeForTest(QualType A, QualType B, ASTContext &Ctx) {
+TYPE_CORRECT_EXPORT QualType GetWiderTypeForTest(QualType A, QualType B,
+                                                 ASTContext &Ctx) {
   return GetWiderType(A, B, Ctx);
 }
 
-std::string TypeToStringForTest(QualType T, ASTContext &Ctx) {
+TYPE_CORRECT_EXPORT std::string TypeToStringForTest(QualType T,
+                                                    ASTContext &Ctx) {
   return TypeToString(T, Ctx);
 }
 
-const NamedDecl *ResolveNamedDeclForTest(const Expr *E) {
+TYPE_CORRECT_EXPORT const NamedDecl *ResolveNamedDeclForTest(const Expr *E) {
   return ResolveNamedDecl(E);
 }
 
-bool IsIdentifierForTest(llvm::StringRef Text) { return IsIdentifier(Text); }
+TYPE_CORRECT_EXPORT bool IsIdentifierForTest(llvm::StringRef Text) {
+  return IsIdentifier(Text);
+}
 
-void CoverVisitorEdgeCases(ASTContext &Ctx) {
+TYPE_CORRECT_EXPORT void CoverVisitorEdgeCases(ASTContext &Ctx) {
   StructAnalyzer Engine(true, true, "");
   llvm::DenseMap<const NamedDecl *, DeclUpdate> DeclUpdates;
   llvm::DenseMap<const VarDecl *, TemplateArgUpdate> TemplateUpdates;
@@ -829,16 +841,16 @@ void CoverVisitorEdgeCases(ASTContext &Ctx) {
       &NewId, Ctx.IntTy, Ctx.getTrivialTypeSourceInfo(Ctx.IntTy), SC_None);
   Visitor.TestUpdateDeclType(NewDecl, Literal);
 
-  auto *Opaque =
-      new (Ctx) OpaqueValueExpr(SourceLocation(), QualType(), VK_RValue);
+  auto *Opaque = new (Ctx)
+      OpaqueValueExpr(SourceLocation(), Ctx.IntTy,
+                      type_correct::clang_compat::PrValueKind());
   Visitor.TestUpdateDeclType(VD, Opaque);
 }
 
-void CoverEnsureTemplateArgUpdateEdges(ASTContext &Ctx,
-                                       const VarDecl *TemplateDecl,
-                                       const VarDecl *NonTemplateDecl,
-                                       const VarDecl *NonTypeTemplateDecl,
-                                       VarDecl *TrivialTemplateDecl) {
+TYPE_CORRECT_EXPORT void CoverEnsureTemplateArgUpdateEdges(
+    ASTContext &Ctx, const VarDecl *TemplateDecl,
+    const VarDecl *NonTemplateDecl, const VarDecl *NonTypeTemplateDecl,
+    VarDecl *TrivialTemplateDecl) {
   StructAnalyzer Engine(true, true, "");
   llvm::DenseMap<const NamedDecl *, DeclUpdate> DeclUpdates;
   llvm::DenseMap<const VarDecl *, TemplateArgUpdate> TemplateUpdates;
@@ -869,7 +881,8 @@ void CoverEnsureTemplateArgUpdateEdges(ASTContext &Ctx,
   }
 }
 
-void CoverTemplateUpdateMapEdges(ASTContext &Ctx, Rewriter &Rewriter) {
+TYPE_CORRECT_EXPORT void CoverTemplateUpdateMapEdges(ASTContext &Ctx,
+                                                     Rewriter &Rewriter) {
   llvm::DenseMap<const NamedDecl *, DeclUpdate> DeclUpdates;
   llvm::DenseMap<const VarDecl *, TemplateArgUpdate> TemplateUpdates;
   std::vector<type_correct::ChangeRecord> Changes;
@@ -915,7 +928,8 @@ void CoverTemplateUpdateMapEdges(ASTContext &Ctx, Rewriter &Rewriter) {
                        TemplateUpdates);
 }
 
-void CoverDeclUpdateMapEdges(ASTContext &Ctx, Rewriter &Rewriter) {
+TYPE_CORRECT_EXPORT void CoverDeclUpdateMapEdges(ASTContext &Ctx,
+                                                 Rewriter &Rewriter) {
   llvm::DenseMap<const NamedDecl *, DeclUpdate> DeclUpdates;
   std::vector<type_correct::ChangeRecord> Changes;
   SourceManager &SM = Rewriter.getSourceMgr();
@@ -962,7 +976,8 @@ void CoverDeclUpdateMapEdges(ASTContext &Ctx, Rewriter &Rewriter) {
   (void)CollectMacroUpdates(Rewriter, true, Changes, Ctx, DeclUpdates);
 }
 
-bool CoverMacroScannerEdges(ASTContext &Ctx, Rewriter &Rewriter) {
+TYPE_CORRECT_EXPORT bool CoverMacroScannerEdges(ASTContext &Ctx,
+                                                Rewriter &Rewriter) {
   SourceManager &SM = Rewriter.getSourceMgr();
   FileID MainFile = SM.getMainFileID();
   auto EntryRef = SM.getFileEntryRefForID(MainFile);
@@ -994,7 +1009,8 @@ bool CoverMacroScannerEdges(ASTContext &Ctx, Rewriter &Rewriter) {
   return true;
 }
 
-void CoverRecordChangeEdges(ASTContext &Ctx, Rewriter &Rewriter) {
+TYPE_CORRECT_EXPORT void CoverRecordChangeEdges(ASTContext &Ctx,
+                                                Rewriter &Rewriter) {
   std::vector<type_correct::ChangeRecord> Changes;
   SourceManager &SM = Rewriter.getSourceMgr();
 

@@ -30,7 +30,7 @@ namespace type_correct {
  * @struct ValueRange
  * @brief Represents a closed numerical interval [Min, Max].
  */
-struct ValueRange {
+struct TYPE_CORRECT_EXPORT ValueRange {
   int64_t Min; ///< Minimum observed value.
   int64_t Max; ///< Maximum observed value.
   bool HasMin; ///< Flag indicating Min is valid.

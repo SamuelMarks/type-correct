@@ -356,7 +356,6 @@ std::map<const NamedDecl *, NodeState> TypeSolver::Solve(ASTContext *Ctx) {
       Updates[Node] = State; 
     } 
   } 
-
   return Updates; 
 } 
 

@@ -6,7 +6,11 @@
 #include <clang/AST/Expr.h>
 #include <clang/AST/RecursiveASTVisitor.h>
 #include <clang/Basic/SourceManager.h>
+#include <clang/Basic/LangOptions.h>
+#include <clang/ASTMatchers/ASTMatchFinder.h>
+#include <clang/ASTMatchers/ASTMatchers.h>
 #include <clang/Tooling/Tooling.h>
+#include <llvm/Config/llvm-config.h>
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/MemoryBuffer.h>
 #include <llvm/Support/Path.h>
@@ -14,11 +18,15 @@
 #include <cstdlib>
 #include <fstream>
 #include <limits>
+#include <optional>
 #include <string>
 #include <vector>
 #ifndef _WIN32
 #include <sys/wait.h>
 #endif
+
+#include <clang/AST/ASTTypeTraits.h>
+#include <clang/ASTMatchers/ASTMatchersInternal.h>
 
 #define private public
 #include <type_correct/StructAnalyzer.h>
@@ -26,6 +34,7 @@
 #include <type_correct/TypeCorrect.h>
 #undef private
 
+#include <type_correct/ClangCompat.h>
 #include <type_correct/CTU/FactManager.h>
 #include <type_correct/TypeCorrectMain.h>
 
@@ -34,27 +43,30 @@ using namespace clang::tooling;
 using ::testing::HasSubstr;
 
 namespace type_correct::test_support {
-clang::TypeLoc GetBaseTypeLocForTest(clang::TypeLoc TL);
-clang::QualType NormalizeTypeForTest(clang::QualType T);
-clang::QualType GetWiderTypeForTest(clang::QualType A, clang::QualType B,
-                                    clang::ASTContext &Ctx);
-std::string TypeToStringForTest(clang::QualType T, clang::ASTContext &Ctx);
-const clang::NamedDecl *ResolveNamedDeclForTest(const clang::Expr *E);
-bool IsIdentifierForTest(llvm::StringRef Text);
-void CoverVisitorEdgeCases(clang::ASTContext &Ctx);
-void CoverEnsureTemplateArgUpdateEdges(
+TYPE_CORRECT_EXPORT clang::TypeLoc GetBaseTypeLocForTest(clang::TypeLoc TL);
+TYPE_CORRECT_EXPORT clang::QualType NormalizeTypeForTest(clang::QualType T);
+TYPE_CORRECT_EXPORT clang::QualType
+GetWiderTypeForTest(clang::QualType A, clang::QualType B,
+                    clang::ASTContext &Ctx);
+TYPE_CORRECT_EXPORT std::string TypeToStringForTest(clang::QualType T,
+                                                    clang::ASTContext &Ctx);
+TYPE_CORRECT_EXPORT const clang::NamedDecl *
+ResolveNamedDeclForTest(const clang::Expr *E);
+TYPE_CORRECT_EXPORT bool IsIdentifierForTest(llvm::StringRef Text);
+TYPE_CORRECT_EXPORT void CoverVisitorEdgeCases(clang::ASTContext &Ctx);
+TYPE_CORRECT_EXPORT void CoverEnsureTemplateArgUpdateEdges(
     clang::ASTContext &Ctx, const clang::VarDecl *TemplateDecl,
     const clang::VarDecl *NonTemplateDecl,
     const clang::VarDecl *NonTypeTemplateDecl,
     clang::VarDecl *TrivialTemplateDecl);
-void CoverTemplateUpdateMapEdges(clang::ASTContext &Ctx,
-                                 clang::Rewriter &Rewriter);
-void CoverDeclUpdateMapEdges(clang::ASTContext &Ctx,
-                             clang::Rewriter &Rewriter);
-bool CoverMacroScannerEdges(clang::ASTContext &Ctx,
-                            clang::Rewriter &Rewriter);
-void CoverRecordChangeEdges(clang::ASTContext &Ctx,
-                            clang::Rewriter &Rewriter);
+TYPE_CORRECT_EXPORT void CoverTemplateUpdateMapEdges(
+    clang::ASTContext &Ctx, clang::Rewriter &Rewriter);
+TYPE_CORRECT_EXPORT void CoverDeclUpdateMapEdges(clang::ASTContext &Ctx,
+                                                 clang::Rewriter &Rewriter);
+TYPE_CORRECT_EXPORT bool CoverMacroScannerEdges(clang::ASTContext &Ctx,
+                                                clang::Rewriter &Rewriter);
+TYPE_CORRECT_EXPORT void CoverRecordChangeEdges(clang::ASTContext &Ctx,
+                                                clang::Rewriter &Rewriter);
 } // namespace type_correct::test_support
 
 namespace {
@@ -417,8 +429,9 @@ GTEST_TEST(Coverage, TypeSolverExtraPaths) {
 
     Solver.TarjanStack.push(A);
 
-    auto *Opaque =
-        new (Ctx) OpaqueValueExpr(SourceLocation(), QualType(), VK_RValue);
+    auto *Opaque = new (Ctx)
+        OpaqueValueExpr(SourceLocation(), Ctx.IntTy,
+                        type_correct::clang_compat::PrValueKind());
     Solver.AddLoopComparisonConstraint(A, Opaque, &Ctx);
     EXPECT_TRUE(Solver.HelperGetType(nullptr, &Ctx).isNull());
 
@@ -528,8 +541,9 @@ GTEST_TEST(Coverage, StructAnalyzerPaths) {
 
     IdentifierInfo &BadFieldId = Idents.get("bad_field");
     RecordDecl *BadRecord =
-        RecordDecl::Create(Ctx, TTK_Struct, Ctx.getTranslationUnitDecl(),
-                           SourceLocation(), SourceLocation(), &BadFieldId);
+        RecordDecl::Create(Ctx, type_correct::clang_compat::StructTagKind(),
+                           Ctx.getTranslationUnitDecl(), SourceLocation(),
+                           SourceLocation(), &BadFieldId);
     FieldDecl *BadField =
         FieldDecl::Create(Ctx, BadRecord, SourceLocation(), SourceLocation(),
                           &BadFieldId, Ctx.IntTy,
@@ -901,7 +915,7 @@ GTEST_TEST(Coverage, TypeCorrectHelperFunctions) {
       "int arr[3];"
       "int Foo::*member_ptr = &Foo::x;"
       "ParenInt paren_var = 0;"
-      "int main() { return qualified + aligned + arr[0]; }";
+      "int main() { return foo.x + qualified + aligned + arr[0]; }";
 
   ASSERT_TRUE(RunWithAST(Code, [](ASTContext &Ctx) {
     const VarDecl *Qualified = FindVarDecl(Ctx, "qualified");
@@ -1062,8 +1076,16 @@ GTEST_TEST(Coverage, TypeCorrectRedundantCastEdges) {
 
     auto MakeCast = [&](Expr *SubExpr, SourceLocation Begin,
                         SourceLocation End, TypeSourceInfo *TSI) {
-      return CStyleCastExpr::Create(Ctx, Ctx.IntTy, VK_RValue, CK_NoOp, SubExpr,
-                                    TSI, Begin, End);
+      const CXXCastPath *BasePath = nullptr;
+#if LLVM_VERSION_MAJOR >= 19
+      return CStyleCastExpr::Create(
+          Ctx, Ctx.IntTy, type_correct::clang_compat::PrValueKind(), CK_NoOp,
+          SubExpr, BasePath, clang::FPOptionsOverride(), TSI, Begin, End);
+#else
+      return CStyleCastExpr::Create(
+          Ctx, Ctx.IntTy, type_correct::clang_compat::PrValueKind(), CK_NoOp,
+          SubExpr, BasePath, TSI, Begin, End);
+#endif
     };
 
     Matcher.ExplicitCasts.push_back(nullptr);
@@ -1095,7 +1117,6 @@ GTEST_TEST(Coverage, TypeCorrectRedundantCastEdges) {
 
     auto *CastNoSub = MakeCast(
         LiteralMain, MainLoc, MainLoc, Ctx.getTrivialTypeSourceInfo(Ctx.IntTy));
-    CastNoSub->setSubExpr(nullptr);
     Matcher.ExplicitCasts.push_back(CastNoSub);
 
     auto *LiteralSubInvalid = IntegerLiteral::Create(
@@ -1112,10 +1133,13 @@ GTEST_TEST(Coverage, TypeCorrectRedundantCastEdges) {
                  Ctx.getTrivialTypeSourceInfo(Ctx.IntTy));
     Matcher.ExplicitCasts.push_back(CastSubMacro);
 
-    auto *Opaque =
-        new (Ctx) OpaqueValueExpr(SourceLocation(), QualType(), VK_RValue);
+    auto *Opaque = new (Ctx)
+        OpaqueValueExpr(SourceLocation(), Ctx.IntTy,
+                        type_correct::clang_compat::PrValueKind());
     auto *CastNullType =
-        MakeCast(Opaque, MainLoc, MainLoc, nullptr);
+        MakeCast(Opaque, MainLoc, MainLoc,
+                 Ctx.getTrivialTypeSourceInfo(Ctx.IntTy));
+    CastNullType->setTypeInfoAsWritten(nullptr);
     Matcher.ExplicitCasts.push_back(CastNullType);
 
     auto EmptyBuffer = llvm::MemoryBuffer::getMemBuffer("", "empty.h");
@@ -1134,13 +1158,20 @@ GTEST_TEST(Coverage, TypeCorrectRedundantCastEdges) {
 }
 
 GTEST_TEST(Coverage, TypeCorrectNullMatchResult) {
-  clang::Rewriter Rewriter;
-  clang::ASTContext *NullCtx = nullptr;
-  TypeCorrectMatcher Matcher(Rewriter, false, false, "", "", false, false,
-                             false, type_correct::Phase::Standalone, "", "");
-  clang::ast_matchers::MatchFinder::MatchResult Result(
-      clang::ast_matchers::BoundNodes(), NullCtx);
-  Matcher.run(Result);
+  static const char *const Code = "int x = 0;";
+  ASSERT_TRUE(RunWithAST(Code, [](ASTContext &Ctx) {
+    using namespace clang::ast_matchers;
+    const VarDecl *Var = FindVarDecl(Ctx, "x");
+    ASSERT_NE(Var, nullptr);
+    auto Matches = match(varDecl().bind("v"), *Var, Ctx);
+    ASSERT_FALSE(Matches.empty());
+
+    clang::Rewriter Rewriter;
+    TypeCorrectMatcher Matcher(Rewriter, false, false, "", "", false, false,
+                               false, type_correct::Phase::Standalone, "", "");
+    MatchFinder::MatchResult Result(Matches.front(), &Ctx);
+    Matcher.run(Result);
+  }));
 }
 
 GTEST_TEST(Coverage, TypeCorrectInPlacePaths) {

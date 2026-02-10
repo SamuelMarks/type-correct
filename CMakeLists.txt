@@ -30,6 +30,13 @@ set(PROJECT_UNDER_NAME "type_correct")
 # C++ standard
 set(CMAKE_CXX_STANDARD 17)
 
+# Test configuration (needs to be available before subdirectories are added).
+option(BUILD_TESTS "Build tests" ON)
+include(CTest)
+if (NOT BUILD_TESTS)
+    set(BUILD_TESTING OFF CACHE BOOL "Build tests" FORCE)
+endif ()
+
 # Visibility Settings
 # -------------------
 # Hide symbols by default to reduce binary size and collision probability, 
@@ -249,8 +256,6 @@ configure_file(
 add_subdirectory("${PROJECT_UNDER_NAME}")
 
 # Add Tests (Optional)
-option(BUILD_TESTS "Build tests" ON)
-include(CTest)
 if (BUILD_TESTING)
     add_subdirectory("${PROJECT_UNDER_NAME}/tests")
 endif (BUILD_TESTING)
