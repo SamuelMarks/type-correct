@@ -16,6 +16,7 @@
 #include "TypeCorrect.h"
 #include "type_correct_export.h"
 #include <clang/Frontend/CompilerInstance.h>
+#include <clang/Frontend/FrontendAction.h>
 #include <clang/Rewrite/Core/Rewriter.h>
 
 //===----------------------------------------------------------------------===//

@@ -37,10 +37,12 @@ TypeLoc GetBaseTypeLoc(TypeLoc TL) {
       TL = QTL.getUnqualifiedLoc();
       continue;
     }
-    if (auto ETL = TL.getAs<ElaboratedTypeLoc>()) {
+#if LLVM_VERSION_MAJOR < 19
+    if (auto ETL = TL.getAs<clang::ElaboratedTypeLoc>()) {
       TL = ETL.getNamedTypeLoc();
       continue;
     }
+#endif
     if (auto ATL = TL.getAs<AttributedTypeLoc>()) {
       TL = ATL.getModifiedLoc();
       continue;

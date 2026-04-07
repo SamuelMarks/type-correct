@@ -25,6 +25,7 @@ set(Header_Files
     "StructAnalyzer.h"
     "TypeSolver.h"
     "CTU/FactManager.h"
+    "TypeCorrectCAPI.h"
 ) 
 source_group("Header Files" FILES "${Header_Files}") 
 
@@ -35,6 +36,7 @@ set(Source_Files
     "StructAnalyzer.cpp"
     "TypeSolver.cpp"
     "CTU/FactManager.cpp"
+    "TypeCorrectCAPI.cpp"
 ) 
 source_group("Source Files" FILES "${Source_Files}") 
 
@@ -159,5 +161,5 @@ install(FILES "${_export_file}" ${Header_Files}
 install(EXPORT "${LIBRARY_NAME}Targets" DESTINATION "${CMAKE_INSTALL_DATADIR}/${LIBRARY_NAME}") 
 
 # Redundant explicit install for verification (keeps original logic intact). 
-install(FILES "${Header_Files}" "${Cli_Header_Files}" "${_export_file}" 
+install(FILES ${Header_Files} ${Cli_Header_Files} "${_export_file}" 
         TYPE "INCLUDE")

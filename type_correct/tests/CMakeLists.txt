@@ -31,6 +31,7 @@ set(EXEC_NAME "test_type_correct")
 set(Source_Files
     "${EXEC_NAME}.cpp"
     "test_coverage.cpp"
+    "test_capi.cpp"
 ) 
 source_group("${EXEC_NAME} Source Files" FILES "${Source_Files}") 
 

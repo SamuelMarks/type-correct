@@ -357,8 +357,8 @@ GTEST_TEST(Coverage, TypeSolverPaths) {
     EXPECT_TRUE(Solver.GetResolvedType(nullptr).isNull());
     EXPECT_FALSE(Solver.GetResolvedType(A).isNull());
 
-    QualType IncompleteTy = Ctx.getRecordType(Incomplete);
-    QualType CompleteTy = Ctx.getRecordType(Complete);
+    QualType IncompleteTy = Ctx.getCanonicalTagType(Incomplete);
+    QualType CompleteTy = Ctx.getCanonicalTagType(Complete);
     EXPECT_FALSE(Solver.GetWider(QualType(), Ctx.IntTy, &Ctx).isNull());
     Solver.GetWider(Ctx.IntTy, QualType(), &Ctx);
     Solver.GetWider(Ctx.IntTy, Ctx.IntTy, &Ctx);
@@ -972,8 +972,8 @@ GTEST_TEST(Coverage, TypeCorrectHelperFunctions) {
     const RecordDecl *FooRec = FindRecordDecl(Ctx, "Foo");
     ASSERT_NE(Fwd, nullptr);
     ASSERT_NE(FooRec, nullptr);
-    QualType IncompleteTy = Ctx.getRecordType(Fwd);
-    QualType CompleteTy = Ctx.getRecordType(FooRec);
+    QualType IncompleteTy = Ctx.getCanonicalTagType(Fwd);
+    QualType CompleteTy = Ctx.getCanonicalTagType(FooRec);
 
     type_correct::test_support::GetWiderTypeForTest(QualType(), Ctx.IntTy, Ctx);
     type_correct::test_support::GetWiderTypeForTest(Ctx.IntTy, QualType(), Ctx);
