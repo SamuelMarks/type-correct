@@ -206,7 +206,7 @@ bool RunReduce(const std::string &Dir) {
     std::string Path = It->path();
     if (llvm::sys::path::extension(Path) == ".facts" &&
         llvm::sys::path::filename(Path) != "global.facts") {
-      if (!type_correct::ctu::FactManager::ReadFacts(Path, AllFacts)) {
+      if (!type_correct::ctu::FactManager::ReadFacts(Path, AllFacts).has_value()) {
         llvm::errs() << "Warning: Failed to read facts from " << Path << "\n";
       }
     }
@@ -226,7 +226,7 @@ bool RunReduce(const std::string &Dir) {
   }
 
   // Write new state
-  if (type_correct::ctu::FactManager::WriteFacts(OutPath, MergedMap)) {
+  if (type_correct::ctu::FactManager::WriteFacts(OutPath, MergedMap).has_value()) {
     llvm::outs() << "Global facts updated at " << OutPath << "\n";
     return true; // Changed
   }

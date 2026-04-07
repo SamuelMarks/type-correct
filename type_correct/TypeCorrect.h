@@ -87,7 +87,7 @@ public:
   /**
    * @brief Destructor.
    */
-  virtual ~TypeCorrectMatcher();
+  virtual ~TypeCorrectMatcher() noexcept;
 
   /**
    * @brief Handle a match result from the AST matcher.

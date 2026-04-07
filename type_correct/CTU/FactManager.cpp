@@ -49,12 +49,12 @@ static int GetTypeRank(const std::string &T) {
   return 0;   // Unknown
 }
 
-bool FactManager::WriteFacts(const std::string &FilePath,
-                             const std::map<std::string, SymbolFact> &Facts) {
+std::expected<void, std::string> FactManager::WriteFacts(const std::string &FilePath,
+                             const std::map<std::string, SymbolFact> &Facts) noexcept {
   std::ofstream Out(FilePath);
   if (!Out.is_open()) {
     llvm::errs() << "Failed to open output fact file: " << FilePath << "\n";
-    return false;
+    return std::unexpected("Failed to open output fact file: " + FilePath);
   }
 
   for (const auto &Pair : Facts) {
@@ -66,14 +66,14 @@ bool FactManager::WriteFacts(const std::string &FilePath,
   }
 
   Out.close();
-  return true;
+  return {};
 }
 
-bool FactManager::ReadFacts(const std::string &FilePath,
-                            std::vector<SymbolFact> &OutFacts) {
+std::expected<void, std::string> FactManager::ReadFacts(const std::string &FilePath,
+                            std::vector<SymbolFact> &OutFacts) noexcept {
   std::ifstream In(FilePath);
   if (!In.is_open()) {
-    return false;
+    return std::unexpected("Failed to open input fact file: " + FilePath);
   }
 
   std::string Line;
@@ -101,11 +101,11 @@ bool FactManager::ReadFacts(const std::string &FilePath,
       OutFacts.push_back(Fact);
     }
   }
-  return true;
+  return {};
 }
 
 std::map<std::string, SymbolFact>
-FactManager::MergeFacts(const std::vector<SymbolFact> &RawFacts) {
+FactManager::MergeFacts(const std::vector<SymbolFact> &RawFacts) noexcept {
   std::map<std::string, SymbolFact> Merged;
 
   for (const auto &Raw : RawFacts) {
@@ -130,11 +130,11 @@ FactManager::MergeFacts(const std::vector<SymbolFact> &RawFacts) {
 
 bool FactManager::IsConvergenceReached(
     const std::string &GlobalFilePath,
-    const std::map<std::string, SymbolFact> &NewFacts) {
+    const std::map<std::string, SymbolFact> &NewFacts) noexcept {
   // 1. Read existing facts from the previous global state
   std::vector<SymbolFact> ExistingVector;
-  if (!ReadFacts(GlobalFilePath, ExistingVector)) {
-    // If the file doesn't exist, we haven't converged (initial state)
+  if (!ReadFacts(GlobalFilePath, ExistingVector).has_value()) {
+    // If the file doesn't exist or is unreadable, we haven't converged (initial state)
     return false;
   }
 

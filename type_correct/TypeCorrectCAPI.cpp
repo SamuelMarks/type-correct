@@ -23,7 +23,7 @@ public:
 };
 } // namespace
 
-extern "C" TYPE_CORRECT_EXPORT int type_correct_audit(const char* target_path) {
+extern "C" TYPE_CORRECT_EXPORT int type_correct_audit(const char* target_path) noexcept {
     if (!target_path) return -1;
 
     std::vector<std::string> CommandLine;
@@ -36,7 +36,7 @@ extern "C" TYPE_CORRECT_EXPORT int type_correct_audit(const char* target_path) {
     return Tool.run(&Factory);
 }
 
-extern "C" TYPE_CORRECT_EXPORT int type_correct_fix(const char* target_path, bool dry_run) {
+extern "C" TYPE_CORRECT_EXPORT int type_correct_fix(const char* target_path, bool dry_run) noexcept {
     if (!target_path) return -1;
 
     std::vector<std::string> CommandLine;

@@ -111,7 +111,7 @@ public:
    * @param Field The field context.
    * @return true If packed.
    */
-  bool IsPacked(const clang::FieldDecl *Field) const;
+  bool IsPacked(const clang::FieldDecl *Field) const noexcept;
 
   /**
    * @brief Analyzes a usage for truncation risks (CFG/Dominator logic).

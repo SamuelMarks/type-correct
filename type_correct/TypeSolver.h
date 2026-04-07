@@ -24,6 +24,8 @@
 #include <stack>
 #include <vector>
 
+#include <optional>
+
 namespace type_correct {
 
 /**
@@ -31,21 +33,18 @@ namespace type_correct {
  * @brief Represents a closed numerical interval [Min, Max].
  */
 struct TYPE_CORRECT_EXPORT ValueRange {
-  int64_t Min; ///< Minimum observed value.
-  int64_t Max; ///< Maximum observed value.
-  bool HasMin; ///< Flag indicating Min is valid.
-  bool HasMax; ///< Flag indicating Max is valid.
+  std::optional<int64_t> Min; ///< Minimum observed value.
+  std::optional<int64_t> Max; ///< Maximum observed value.
 
   /// @brief Construct an empty range with no bounds.
-  ValueRange() : Min(0), Max(0), HasMin(false), HasMax(false) {}
+  ValueRange() noexcept = default;
   /// @brief Construct a fixed range [Val, Val].
-  ValueRange(int64_t Val) : Min(Val), Max(Val), HasMin(true), HasMax(true) {}
+  ValueRange(int64_t Val) noexcept : Min(Val), Max(Val) {}
   /// @brief Construct a fixed range [Least, Most].
-  ValueRange(int64_t Least, int64_t Most)
-      : Min(Least), Max(Most), HasMin(true), HasMax(true) {}
+  ValueRange(int64_t Least, int64_t Most) noexcept : Min(Least), Max(Most) {}
 
   /// @brief Expand this range by unioning with another range.
-  void Union(const ValueRange &Other);
+  void Union(const ValueRange &Other) noexcept;
 };
 
 /**

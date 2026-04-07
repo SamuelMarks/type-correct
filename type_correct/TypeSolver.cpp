@@ -25,25 +25,23 @@ namespace type_correct {
 // ValueRange Logic
 //----------------------------------------------------------------------------- 
 
-void ValueRange::Union(const ValueRange &Other) { 
-  if (!Other.HasMin && !Other.HasMax) 
+void ValueRange::Union(const ValueRange &Other) noexcept { 
+  if (!Other.Min.has_value() && !Other.Max.has_value()) 
     return; 
 
-  if (Other.HasMin) { 
-    if (!HasMin) { 
+  if (Other.Min.has_value()) { 
+    if (!Min.has_value()) { 
       Min = Other.Min; 
-      HasMin = true; 
     } else { 
-      Min = std::min(Min, Other.Min); 
+      Min = std::min(*Min, *Other.Min); 
     } 
   } 
 
-  if (Other.HasMax) { 
-    if (!HasMax) { 
+  if (Other.Max.has_value()) { 
+    if (!Max.has_value()) { 
       Max = Other.Max; 
-      HasMax = true; 
     } else { 
-      Max = std::max(Max, Other.Max); 
+      Max = std::max(*Max, *Other.Max); 
     } 
   } 
 } 
@@ -238,10 +236,10 @@ QualType TypeSolver::GetWider(QualType A, QualType B, ASTContext *Ctx) {
 QualType TypeSolver::GetOptimalTypeForRange(const ValueRange &R, 
                                             QualType Original, 
                                             ASTContext *Ctx) { 
-  if (!R.HasMin && !R.HasMax) 
+  if (!R.Min.has_value() && !R.Max.has_value()) 
     return Original; 
 
-  bool NeedsSigned = (R.HasMin && R.Min < 0); 
+  bool NeedsSigned = (R.Min.has_value() && *R.Min < 0); 
 
   auto GetUint = [&](unsigned Width) { 
     if (Width == 8) 
@@ -264,17 +262,19 @@ QualType TypeSolver::GetOptimalTypeForRange(const ValueRange &R,
   }; 
 
   if (!NeedsSigned) { 
-    if (R.HasMax) { 
-      if (R.Max <= std::numeric_limits<uint8_t>::max()) 
+    if (R.Max.has_value()) { 
+      if (*R.Max <= std::numeric_limits<uint8_t>::max()) 
         return GetUint(8); 
-      if (R.Max <= std::numeric_limits<uint16_t>::max()) 
+      if (*R.Max <= std::numeric_limits<uint16_t>::max()) 
         return GetUint(16); 
-      if (R.Max <= std::numeric_limits<uint32_t>::max()) 
+      if (*R.Max <= std::numeric_limits<uint32_t>::max()) 
         return GetUint(32); 
       return Ctx->getSizeType(); 
     } 
   } else { 
-    int64_t AbsMax = std::max(std::abs(R.Min), std::abs(R.Max)); 
+    int64_t MinVal = R.Min.has_value() ? *R.Min : 0;
+    int64_t MaxVal = R.Max.has_value() ? *R.Max : 0;
+    int64_t AbsMax = std::max(std::abs(MinVal), std::abs(MaxVal)); 
 
     if (AbsMax <= std::numeric_limits<int8_t>::max()) 
       return GetInt(8); 
@@ -342,7 +342,7 @@ std::map<const NamedDecl *, NodeState> TypeSolver::Solve(ASTContext *Ctx) {
     QualType Optimal; 
     if (State.IsPtrOffset) { 
       Optimal = GetWider(State.ConstraintType, Ctx->getPointerDiffType(), Ctx); 
-    } else if (State.ComputedRange.HasMax) { 
+    } else if (State.ComputedRange.Max.has_value()) { 
       Optimal =
           GetOptimalTypeForRange(State.ComputedRange, State.OriginalType, Ctx); 
     } else { 

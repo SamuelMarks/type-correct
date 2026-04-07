@@ -591,7 +591,7 @@ void ApplyMacroUpdates(clang::Rewriter &Rewriter, bool AuditMode,
 //------------------------------------------------------------------------------
 // ✅ VTABLE ANCHOR
 //------------------------------------------------------------------------------
-TypeCorrectMatcher::~TypeCorrectMatcher() {}
+TypeCorrectMatcher::~TypeCorrectMatcher() noexcept {}
 
 //------------------------------------------------------------------------------
 // ✅ CONSTRUCTOR (REQUIRED)

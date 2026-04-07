@@ -341,10 +341,10 @@ GTEST_TEST(Coverage, TypeSolverPaths) {
     type_correct::ValueRange Positive(0, 10);
     type_correct::ValueRange Negative(-5, 5);
     type_correct::ValueRange Single(7);
-    EXPECT_TRUE(Single.HasMin);
-    EXPECT_TRUE(Single.HasMax);
-    EXPECT_EQ(Single.Min, 7);
-    EXPECT_EQ(Single.Max, 7);
+    EXPECT_TRUE(Single.Min.has_value());
+    EXPECT_TRUE(Single.Max.has_value());
+    EXPECT_EQ(*Single.Min, 7);
+    EXPECT_EQ(*Single.Max, 7);
     Solver.AddRangeConstraint(A, Positive);
     Solver.AddRangeConstraint(B, Negative);
 
@@ -401,11 +401,9 @@ GTEST_TEST(Coverage, TypeSolverExtraPaths) {
 
     type_correct::ValueRange OnlyMin;
     OnlyMin.Min = 1;
-    OnlyMin.HasMin = true;
 
     type_correct::ValueRange OnlyMax;
     OnlyMax.Max = 5;
-    OnlyMax.HasMax = true;
 
     type_correct::ValueRange Partial;
     Partial.Union(OnlyMin);

@@ -28,7 +28,7 @@ project(TypeCorrect VERSION 0.0.1 LANGUAGES C CXX)
 set(PROJECT_UNDER_NAME "type_correct")
 
 # C++ standard
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 23)
 
 # Test configuration (needs to be available before subdirectories are added).
 option(BUILD_TESTS "Build tests" ON)
@@ -158,7 +158,7 @@ set(CMAKE_C_STANDARD 90 CACHE STRING "C Standard Version")
 # C++ Standard: C++20
 # Description: LLVM 16+ utilizes C++17, but we default to C++20 for
 # modern features and forward compatibility.
-set(CMAKE_CXX_STANDARD 20 CACHE STRING "C++ Standard Version")
+set(CMAKE_CXX_STANDARD 23 CACHE STRING "C++ Standard Version")
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF) # Disable GNU extensions (e.g., -std=gnu++20)
 

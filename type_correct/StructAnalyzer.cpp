@@ -83,7 +83,7 @@ bool StructAnalyzer::CanRewriteTypedef(const TypedefNameDecl *TD,
   return !IsBoundaryFixed(TD, SM); 
 } 
 
-bool StructAnalyzer::IsPacked(const FieldDecl *Field) const { 
+bool StructAnalyzer::IsPacked(const FieldDecl *Field) const noexcept { 
   if (!Field) 
     return false; 
 

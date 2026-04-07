@@ -14,6 +14,7 @@
 #ifndef TYPE_CORRECT_CTU_FACTMANAGER_H
 #define TYPE_CORRECT_CTU_FACTMANAGER_H
 
+#include <expected>
 #include <map>
 #include <string>
 #include <vector>
@@ -115,8 +116,9 @@ public:
    * @param Facts The map of USR -> SymbolFact to write.
    * @return true on successful write, false otherwise.
    */
-  static bool WriteFacts(const std::string &FilePath,
-                         const std::map<std::string, SymbolFact> &Facts);
+  static std::expected<void, std::string>
+  WriteFacts(const std::string &FilePath,
+             const std::map<std::string, SymbolFact> &Facts) noexcept;
 
   /**
    * @brief Deserialize facts from a file and append to the provided vector.
@@ -125,8 +127,9 @@ public:
    * @param OutFacts Vector to populate with deserialized facts.
    * @return true on successful read, false if file missing or unreadable.
    */
-  static bool ReadFacts(const std::string &FilePath,
-                        std::vector<SymbolFact> &OutFacts);
+  static std::expected<void, std::string>
+  ReadFacts(const std::string &FilePath,
+            std::vector<SymbolFact> &OutFacts) noexcept;
 
   /**
    * @brief Reducing logic: Merges a raw list of facts into a unique map.
@@ -138,7 +141,7 @@ public:
    * @return std::map<std::string, SymbolFact> The consolidated global state.
    */
   static std::map<std::string, SymbolFact>
-  MergeFacts(const std::vector<SymbolFact> &RawFacts);
+  MergeFacts(const std::vector<SymbolFact> &RawFacts) noexcept;
 
   /**
    * @brief Compares a new set of merged facts against the existing global file.
@@ -151,9 +154,9 @@ public:
    * (Converged).
    * @return false if the file is missing or content differs (Not Converged).
    */
-  static bool
-  IsConvergenceReached(const std::string &GlobalFilePath,
-                       const std::map<std::string, SymbolFact> &NewFacts);
+  static bool IsConvergenceReached(
+      const std::string &GlobalFilePath,
+      const std::map<std::string, SymbolFact> &NewFacts) noexcept;
 };
 
 } // namespace ctu
