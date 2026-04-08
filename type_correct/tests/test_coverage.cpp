@@ -50,7 +50,7 @@ GetWiderTypeForTest(clang::QualType A, clang::QualType B,
                     clang::ASTContext &Ctx);
 TYPE_CORRECT_EXPORT std::string TypeToStringForTest(clang::QualType T,
                                                     clang::ASTContext &Ctx);
-TYPE_CORRECT_EXPORT const clang::NamedDecl *
+TYPE_CORRECT_EXPORT std::optional<const clang::NamedDecl *>
 ResolveNamedDeclForTest(const clang::Expr *E);
 TYPE_CORRECT_EXPORT bool IsIdentifierForTest(llvm::StringRef Text);
 TYPE_CORRECT_EXPORT void CoverVisitorEdgeCases(clang::ASTContext &Ctx);
@@ -354,8 +354,8 @@ GTEST_TEST(Coverage, TypeSolverPaths) {
     auto Updates = Solver.Solve(&Ctx);
     EXPECT_FALSE(Updates.empty());
 
-    EXPECT_TRUE(Solver.GetResolvedType(nullptr).isNull());
-    EXPECT_FALSE(Solver.GetResolvedType(A).isNull());
+    EXPECT_FALSE(Solver.GetResolvedType(nullptr).has_value());
+    EXPECT_TRUE(Solver.GetResolvedType(A).has_value());
 
     QualType IncompleteTy = Ctx.getCanonicalTagType(Incomplete);
     QualType CompleteTy = Ctx.getCanonicalTagType(Complete);
@@ -431,15 +431,22 @@ GTEST_TEST(Coverage, TypeSolverExtraPaths) {
         OpaqueValueExpr(SourceLocation(), Ctx.IntTy,
                         type_correct::clang_compat::PrValueKind());
     Solver.AddLoopComparisonConstraint(A, Opaque, &Ctx);
-    EXPECT_TRUE(Solver.HelperGetType(nullptr, &Ctx).isNull());
+    Solver.AddLoopComparisonConstraint(A, nullptr, &Ctx);
+    EXPECT_FALSE(Solver.HelperGetType(nullptr, &Ctx).has_value());
 
-    EXPECT_FALSE(Solver.GetResolvedType(D).isNull());
+    EXPECT_TRUE(Solver.GetResolvedType(D).has_value());
+    IdentifierInfo &DummyId = Ctx.Idents.get("tc_dummy");
+    NamespaceDecl *DummyNS = NamespaceDecl::Create(Ctx, Ctx.getTranslationUnitDecl(), false, SourceLocation(), SourceLocation(), &DummyId, nullptr, false);
+    EXPECT_FALSE(Solver.GetResolvedType(DummyNS).has_value());
 
     type_correct::ValueRange EmptyRange;
     Solver.GetOptimalTypeForRange(EmptyRange, Ctx.IntTy, &Ctx);
     Solver.GetOptimalTypeForRange(OnlyMin, Ctx.IntTy, &Ctx);
-    Solver.GetOptimalTypeForRange(type_correct::ValueRange(0, 200), Ctx.IntTy,
-                                  &Ctx);
+    Solver.GetOptimalTypeForRange(type_correct::ValueRange(0, 50000), Ctx.IntTy, &Ctx);
+    Solver.GetOptimalTypeForRange(type_correct::ValueRange(0, 0), Ctx.LongLongTy, &Ctx);
+    Solver.GetOptimalTypeForRange(type_correct::ValueRange(-9000000000000000000LL, 0), Ctx.IntTy, &Ctx);
+    Solver.GetOptimalTypeForRange(type_correct::ValueRange(0, 9000000000000000000LL), Ctx.IntTy, &Ctx);
+    Solver.GetResolvedType(nullptr);
     Solver.GetOptimalTypeForRange(type_correct::ValueRange(0, 70000), Ctx.IntTy,
                                   &Ctx);
     Solver.GetOptimalTypeForRange(
@@ -908,6 +915,7 @@ GTEST_TEST(Coverage, TypeCorrectHelperFunctions) {
       "const int qualified = 0;"
       "struct Foo foo;"
       "AlignedInt aligned = 0;"
+      "int __attribute__((aligned(4))) attr_var = 0;"
       "int *ptr = nullptr;"
       "int &ref = *ptr;"
       "int arr[3];"
@@ -918,6 +926,7 @@ GTEST_TEST(Coverage, TypeCorrectHelperFunctions) {
   ASSERT_TRUE(RunWithAST(Code, [](ASTContext &Ctx) {
     const VarDecl *Qualified = FindVarDecl(Ctx, "qualified");
     const VarDecl *Aligned = FindVarDecl(Ctx, "aligned");
+    const VarDecl *AttrVar = FindVarDecl(Ctx, "attr_var");
     const VarDecl *Ptr = FindVarDecl(Ctx, "ptr");
     const VarDecl *Ref = FindVarDecl(Ctx, "ref");
     const VarDecl *Arr = FindVarDecl(Ctx, "arr");
@@ -944,6 +953,9 @@ GTEST_TEST(Coverage, TypeCorrectHelperFunctions) {
     if (Aligned->getTypeSourceInfo())
       type_correct::test_support::GetBaseTypeLocForTest(
           Aligned->getTypeSourceInfo()->getTypeLoc());
+    if (AttrVar->getTypeSourceInfo())
+      type_correct::test_support::GetBaseTypeLocForTest(
+          AttrVar->getTypeSourceInfo()->getTypeLoc());
     if (Ptr->getTypeSourceInfo())
       type_correct::test_support::GetBaseTypeLocForTest(
           Ptr->getTypeSourceInfo()->getTypeLoc());
@@ -990,14 +1002,10 @@ GTEST_TEST(Coverage, TypeCorrectHelperFunctions) {
     const Expr *Literal =
         IntegerLiteral::Create(Ctx, llvm::APInt(32, 7), Ctx.IntTy,
                                SourceLocation());
-    EXPECT_EQ(type_correct::test_support::ResolveNamedDeclForTest(nullptr),
-              nullptr);
-    EXPECT_NE(type_correct::test_support::ResolveNamedDeclForTest(DeclRef),
-              nullptr);
-    EXPECT_NE(type_correct::test_support::ResolveNamedDeclForTest(Member),
-              nullptr);
-    EXPECT_EQ(type_correct::test_support::ResolveNamedDeclForTest(Literal),
-              nullptr);
+    EXPECT_FALSE(type_correct::test_support::ResolveNamedDeclForTest(nullptr).has_value());
+    EXPECT_TRUE(type_correct::test_support::ResolveNamedDeclForTest(DeclRef).has_value());
+    EXPECT_TRUE(type_correct::test_support::ResolveNamedDeclForTest(Member).has_value());
+    EXPECT_FALSE(type_correct::test_support::ResolveNamedDeclForTest(Literal).has_value());
 
     EXPECT_FALSE(type_correct::test_support::IsIdentifierForTest(""));
     EXPECT_FALSE(type_correct::test_support::IsIdentifierForTest("1bad"));

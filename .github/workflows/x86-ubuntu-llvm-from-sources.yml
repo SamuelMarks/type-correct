@@ -3,7 +3,7 @@ name: x86-Ubuntu-llvm-from-sources
 on:
   push:
     tags:
-      - *
+      - '*'
 
 jobs:
   build:

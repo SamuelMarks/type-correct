@@ -207,9 +207,10 @@ public:
   /**
    * @brief Get the resolved type for a declaration.
    * @param Decl Declaration to query.
-   * @return Resolved type or null type if unknown.
+   * @return Resolved type or nullopt if unknown.
    */
-  clang::QualType GetResolvedType(const clang::NamedDecl *Decl) const;
+  std::optional<clang::QualType>
+  GetResolvedType(const clang::NamedDecl *Decl) const noexcept;
 
 private:
   std::map<const clang::NamedDecl *, NodeState> Nodes;
@@ -230,7 +231,8 @@ private:
   clang::QualType GetOptimalTypeForRange(const ValueRange &R,
                                          clang::QualType Original,
                                          clang::ASTContext *Ctx);
-  clang::QualType HelperGetType(const clang::Expr *E, clang::ASTContext *Ctx);
+  std::optional<clang::QualType> HelperGetType(const clang::Expr *E,
+                                               clang::ASTContext *Ctx);
 };
 
 } // namespace type_correct

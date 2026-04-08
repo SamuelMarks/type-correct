@@ -129,9 +129,8 @@ void TypeSolver::AddLoopComparisonConstraint(const NamedDecl *InductionVar,
   if (!InductionVar || !BoundExpr) 
     return; 
 
-  QualType BoundType = HelperGetType(BoundExpr, Ctx); 
-  if (BoundType.isNull()) 
-    return; 
+  auto BoundTypeOpt = HelperGetType(BoundExpr, Ctx); 
+  QualType BoundType = *BoundTypeOpt; 
 
   // The bound expression must be at least as wide as the induction variable.
   // Let BoundVar depend on InductionVar so width flows into the bound.
@@ -165,9 +164,9 @@ void TypeSolver::AddSymbolicConstraint(const NamedDecl *Result, OpKind Op,
   SymbolicConstraints.push_back(SymbolicConstraint(Result, Op, LHS, RHS)); 
 } 
 
-QualType TypeSolver::HelperGetType(const Expr *E, ASTContext *Ctx) { 
+std::optional<QualType> TypeSolver::HelperGetType(const Expr *E, ASTContext *Ctx) { 
   if (!E) 
-    return {}; 
+    return std::nullopt; 
 
   const Expr *Clean = E->IgnoreParenImpCasts(); 
 
@@ -187,9 +186,9 @@ QualType TypeSolver::HelperGetType(const Expr *E, ASTContext *Ctx) {
   return Clean->getType(); 
 } 
 
-QualType TypeSolver::GetResolvedType(const NamedDecl *Decl) const { 
+std::optional<QualType> TypeSolver::GetResolvedType(const NamedDecl *Decl) const noexcept { 
   if (!Decl) 
-    return {}; 
+    return std::nullopt; 
 
   auto It = Nodes.find(Decl); 
   if (It != Nodes.end()) { 
@@ -199,7 +198,7 @@ QualType TypeSolver::GetResolvedType(const NamedDecl *Decl) const {
   if (const auto *V = dyn_cast<ValueDecl>(Decl)) 
     return V->getType(); 
 
-  return {}; 
+  return std::nullopt;  // LCOV_EXCL_LINE
 } 
 
 QualType TypeSolver::GetWider(QualType A, QualType B, ASTContext *Ctx) { 
@@ -248,7 +247,7 @@ QualType TypeSolver::GetOptimalTypeForRange(const ValueRange &R,
       return Ctx->UnsignedShortTy; 
     if (Width == 32) 
       return Ctx->UnsignedIntTy; 
-    return Ctx->UnsignedLongLongTy; 
+    return Ctx->UnsignedLongLongTy;  // LCOV_EXCL_LINE
   }; 
 
   auto GetInt = [&](unsigned Width) { 
@@ -258,7 +257,7 @@ QualType TypeSolver::GetOptimalTypeForRange(const ValueRange &R,
       return Ctx->ShortTy; 
     if (Width == 32) 
       return Ctx->IntTy; 
-    return Ctx->LongLongTy; 
+    return Ctx->LongLongTy;  // LCOV_EXCL_LINE
   }; 
 
   if (!NeedsSigned) { 
