@@ -41,7 +41,7 @@ enum class Phase {
  */
 struct ChangeRecord {
   std::string FilePath; ///< Source file path for the change.
-  unsigned Line;        ///< 1-based line number.
+  unsigned Line = 0;    ///< 1-based line number.
   std::string Symbol;   ///< Symbol name or USR.
   std::string OldType;  ///< Original type spelling.
   std::string NewType;  ///< Updated type spelling.
@@ -60,7 +60,8 @@ struct AssignmentSite {
 
 /**
  * @class TypeCorrectMatcher
- * @brief AST matcher callback that collects type constraints and applies rewrites.
+ * @brief AST matcher callback that collects type constraints and applies
+ * rewrites.
  */
 class TYPE_CORRECT_EXPORT TypeCorrectMatcher
     : public clang::ast_matchers::MatchFinder::MatchCallback {
@@ -97,8 +98,8 @@ public:
    * @brief Handle a match result from the AST matcher.
    * @param Result Matched AST nodes.
    */
-  void run(const clang::ast_matchers::MatchFinder::MatchResult &Result)
-      noexcept override;
+  void run(const clang::ast_matchers::MatchFinder::MatchResult &Result) noexcept
+      override;
 
   /**
    * @brief Finalize processing after the translation unit is parsed.
@@ -110,7 +111,7 @@ public:
    * @brief Retrieve the list of recorded changes.
    * @return Vector of changes.
    */
-  std::vector<type_correct::ChangeRecord> GetChanges() const noexcept;
+  const std::vector<type_correct::ChangeRecord> &GetChanges() const noexcept;
 
 private:
   clang::Rewriter &Rewriter;
@@ -152,7 +153,8 @@ private:
 
 /**
  * @class TypeCorrectASTConsumer
- * @brief Clang ASTConsumer that dispatches AST matching and end-of-TU rewriting.
+ * @brief Clang ASTConsumer that dispatches AST matching and end-of-TU
+ * rewriting.
  */
 class TYPE_CORRECT_EXPORT TypeCorrectASTConsumer : public clang::ASTConsumer {
 public:

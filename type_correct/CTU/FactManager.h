@@ -116,7 +116,8 @@ public:
    *
    * @param FilePath The output filesystem path.
    * @param Facts The map of USR -> SymbolFact to write.
-   * @return std::expected<void, std::string> Empty expected on success, or error message.
+   * @return std::expected<void, std::string> Empty expected on success, or
+   * error message.
    */
   static std::expected<void, std::string>
   WriteFacts(const std::string &FilePath,
@@ -127,7 +128,8 @@ public:
    *
    * @param FilePath The input filesystem path.
    * @param OutFacts Vector to populate with deserialized facts.
-   * @return std::expected<void, std::string> Empty expected on success, or error message if missing/unreadable.
+   * @return std::expected<void, std::string> Empty expected on success, or
+   * error message if missing/unreadable.
    */
   static std::expected<void, std::string>
   ReadFacts(const std::string &FilePath,

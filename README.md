@@ -93,28 +93,28 @@ The primary operation involves widening narrow integer types (`int`, `short`) to
 ```c
 #include <string.h>
 
-int main(void) { 
+int main(void) {
 
-    /* FROM */ 
-    const int n = strlen("FOO"); 
+    /* FROM */
+    const int n = strlen("FOO");
 
-    /* TO: Correctly captures return type of strlen */ 
-    const size_t n = strlen("FOO"); 
+    /* TO: Correctly captures return type of strlen */
+    const size_t n = strlen("FOO");
 
-    /* FROM */ 
-    for(int i=0; i<strlen("BAR"); i++) {} 
+    /* FROM */
+    for(int i=0; i<strlen("BAR"); i++) {}
 
-    /* TO: Loop index matches comparison type */ 
-    for(size_t i=0; i<strlen("BAR"); i++) {} 
+    /* TO: Loop index matches comparison type */
+    for(size_t i=0; i<strlen("BAR"); i++) {}
 
-    /* FROM */ 
-    int f(long b) { return b; } 
-    static const int c = f(5); 
+    /* FROM */
+    int f(long b) { return b; }
+    static const int c = f(5);
 
-    /* TO: Propagation of return types */ 
-    long f(long b) { return b; } 
-    static const long c = f(5); 
-} 
+    /* TO: Propagation of return types */
+    long f(long b) { return b; }
+    static const long c = f(5);
+}
 ```
 
 ## Justification
@@ -129,25 +129,25 @@ manual labor `type-correct` automates.
 From:
 
 ```c
-unsigned long f() {return 0;} 
-const size_t v = f(); 
+unsigned long f() {return 0;}
+const size_t v = f();
 
-int main() { 
-    std::vector<float> vec; 
-    for(int i=0; i<vec.size(); i++) {} 
-} 
+int main() {
+    std::vector<float> vec;
+    for(int i=0; i<vec.size(); i++) {}
+}
 ```
 
 To:
 
 ```c
-unsigned long f() {return 0;} 
-const unsigned long v = f(); 
+unsigned long f() {return 0;}
+const unsigned long v = f();
 
-int main() { 
-    std::vector<float> vec; 
-    for(size_t i=0; i<vec.size(); i++) {} 
-} 
+int main() {
+    std::vector<float> vec;
+    for(size_t i=0; i<vec.size(); i++) {}
+}
 ```
 
 PS: I'm aware that [
@@ -160,19 +160,19 @@ reiterate: C++ is an afterthought, my main target is C.
 ```c
 #include <limits.h>
 
-short sh=SHRT_MAX; 
-int i=INT_MAX; 
-long l=LONG_MAX; 
-long long ll=LLONG_MAX; /* C99 */ 
+short sh=SHRT_MAX;
+int i=INT_MAX;
+long l=LONG_MAX;
+long long ll=LLONG_MAX; /* C99 */
 ```
 
 Technically, these are all [defined and expected](https://en.cppreference.com/w/c/language/conversion) [on clang as an [
 `ImplicitCastExpr`](https://clang.llvm.org/doxygen/classclang_1_1ImplicitCastExpr.html)]:
 
 ```c
-ll = l; 
-l = i; 
-i = sh; 
+ll = l;
+l = i;
+i = sh;
 ```
 
 (but the other
@@ -293,11 +293,15 @@ To run coverage + doc coverage and refresh the shields in one step:
 $ scripts/coverage_badges.sh [build]
 ```
 
-Enable the pre-commit hook:
+Enable the pre-commit hooks:
 
 ```sh
-$ git config core.hooksPath .githooks
+$ pip install pre-commit
+$ pre-commit install
+$ pre-commit run --all-files
 ```
+
+(Or using the fallback git hook directory: `git config core.hooksPath .githooks`).
 
 ## Thanks
 
@@ -313,6 +317,6 @@ You can copy, modify, distribute and perform the work, even for commercial purpo
 
 #### Other Information
 
-  - In no way are the patent or trademark rights of any person affected by CC0, nor are the rights that other persons may have in the work or in how the work is used, such as publicity or privacy rights. 
-  - Unless expressly stated otherwise, the person who associated a work with this deed makes no warranties about the work, and disclaims liability for all uses of the work, to the fullest extent permitted by applicable law. 
+  - In no way are the patent or trademark rights of any person affected by CC0, nor are the rights that other persons may have in the work or in how the work is used, such as publicity or privacy rights.
+  - Unless expressly stated otherwise, the person who associated a work with this deed makes no warranties about the work, and disclaims liability for all uses of the work, to the fullest extent permitted by applicable law.
   - When using or citing the work, you should not imply endorsement by the author or the affirmer.

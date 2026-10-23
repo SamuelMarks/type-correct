@@ -18,7 +18,8 @@ namespace type_correct::clang_compat {
 
 /**
  * @brief Returns the Clang expression value kind representing a prvalue/rvalue.
- * @return clang::ExprValueKind The prvalue or rvalue kind for the active LLVM version.
+ * @return clang::ExprValueKind The prvalue or rvalue kind for the active LLVM
+ * version.
  */
 constexpr clang::ExprValueKind PrValueKind() noexcept {
 #if LLVM_VERSION_MAJOR >= 15
@@ -41,9 +42,11 @@ constexpr clang::TagTypeKind StructTagKind() noexcept {
 }
 
 /**
- * @brief Retrieves the canonical record/tag QualType for a RecordDecl across LLVM versions.
+ * @brief Retrieves the canonical record/tag QualType for a RecordDecl across
+ * LLVM versions.
  *
- * LLVM 22 removed `ASTContext::getRecordType` in favor of `ASTContext::getCanonicalTagType`.
+ * LLVM 22 removed `ASTContext::getRecordType` in favor of
+ * `ASTContext::getCanonicalTagType`.
  *
  * @param Ctx The Clang ASTContext.
  * @param Decl The RecordDecl to query.

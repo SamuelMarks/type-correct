@@ -272,8 +272,8 @@ private:
   clang::QualType GetOptimalTypeForRange(const ValueRange &R,
                                          clang::QualType Original,
                                          clang::ASTContext *Ctx) noexcept;
-  std::optional<clang::QualType>
-  HelperGetType(const clang::Expr *E, clang::ASTContext *Ctx) noexcept;
+  std::optional<clang::QualType> HelperGetType(const clang::Expr *E,
+                                               clang::ASTContext *Ctx) noexcept;
 };
 
 } // namespace type_correct

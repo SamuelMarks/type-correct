@@ -5,10 +5,10 @@
 #include <clang/AST/Decl.h>
 #include <clang/AST/Expr.h>
 #include <clang/AST/RecursiveASTVisitor.h>
-#include <clang/Basic/SourceManager.h>
-#include <clang/Basic/LangOptions.h>
 #include <clang/ASTMatchers/ASTMatchFinder.h>
 #include <clang/ASTMatchers/ASTMatchers.h>
+#include <clang/Basic/LangOptions.h>
+#include <clang/Basic/SourceManager.h>
 #include <clang/Tooling/Tooling.h>
 #include <llvm/Config/llvm-config.h>
 #include <llvm/Support/FileSystem.h>
@@ -30,12 +30,12 @@
 
 #define private public
 #include <type_correct/StructAnalyzer.h>
-#include <type_correct/TypeSolver.h>
 #include <type_correct/TypeCorrect.h>
+#include <type_correct/TypeSolver.h>
 #undef private
 
-#include <type_correct/ClangCompat.h>
 #include <type_correct/CTU/FactManager.h>
+#include <type_correct/ClangCompat.h>
 #include <type_correct/TypeCorrectMain.h>
 
 using namespace clang;
@@ -56,11 +56,12 @@ TYPE_CORRECT_EXPORT std::optional<const clang::NamedDecl *>
 ResolveNamedDeclForTest(const clang::Expr *E) noexcept;
 TYPE_CORRECT_EXPORT bool IsIdentifierForTest(llvm::StringRef Text) noexcept;
 TYPE_CORRECT_EXPORT void CoverVisitorEdgeCases(clang::ASTContext &Ctx) noexcept;
-TYPE_CORRECT_EXPORT void CoverEnsureTemplateArgUpdateEdges(
-    clang::ASTContext &Ctx, const clang::VarDecl *TemplateDecl,
-    const clang::VarDecl *NonTemplateDecl,
-    const clang::VarDecl *NonTypeTemplateDecl,
-    clang::VarDecl *TrivialTemplateDecl) noexcept;
+TYPE_CORRECT_EXPORT void
+CoverEnsureTemplateArgUpdateEdges(clang::ASTContext &Ctx,
+                                  const clang::VarDecl *TemplateDecl,
+                                  const clang::VarDecl *NonTemplateDecl,
+                                  const clang::VarDecl *NonTypeTemplateDecl,
+                                  clang::VarDecl *TrivialTemplateDecl) noexcept;
 TYPE_CORRECT_EXPORT void
 CoverTemplateUpdateMapEdges(clang::ASTContext &Ctx,
                             clang::Rewriter &Rewriter) noexcept;
@@ -79,7 +80,8 @@ namespace {
 
 class LambdaASTConsumer : public clang::ASTConsumer {
 public:
-  explicit LambdaASTConsumer(std::function<void(clang::ASTContext &)> Fn) noexcept
+  explicit LambdaASTConsumer(
+      std::function<void(clang::ASTContext &)> Fn) noexcept
       : Fn(std::move(Fn)) {}
 
   void HandleTranslationUnit(clang::ASTContext &Ctx) noexcept override {
@@ -92,11 +94,13 @@ private:
 
 class LambdaFrontendAction : public clang::ASTFrontendAction {
 public:
-  explicit LambdaFrontendAction(std::function<void(clang::ASTContext &)> Fn) noexcept
+  explicit LambdaFrontendAction(
+      std::function<void(clang::ASTContext &)> Fn) noexcept
       : Fn(std::move(Fn)) {}
 
   std::unique_ptr<clang::ASTConsumer>
-  CreateASTConsumer(clang::CompilerInstance &CI, llvm::StringRef) noexcept override {
+  CreateASTConsumer(clang::CompilerInstance &CI,
+                    llvm::StringRef) noexcept override {
     return std::make_unique<LambdaASTConsumer>(Fn);
   }
 
@@ -190,7 +194,8 @@ const VarDecl *FindVarDecl(ASTContext &Ctx, const std::string &Name) noexcept {
   return Visitor.FoundVar;
 }
 
-const FieldDecl *FindFieldDecl(ASTContext &Ctx, const std::string &Name) noexcept {
+const FieldDecl *FindFieldDecl(ASTContext &Ctx,
+                               const std::string &Name) noexcept {
   FindVisitor Visitor;
   Visitor.FieldName = Name;
   Visitor.TraverseDecl(Ctx.getTranslationUnitDecl());
@@ -205,7 +210,8 @@ const TypedefNameDecl *FindTypedefDecl(ASTContext &Ctx,
   return Visitor.FoundTypedef;
 }
 
-const RecordDecl *FindRecordDecl(ASTContext &Ctx, const std::string &Name) noexcept {
+const RecordDecl *FindRecordDecl(ASTContext &Ctx,
+                                 const std::string &Name) noexcept {
   FindVisitor Visitor;
   Visitor.RecordName = Name;
   Visitor.TraverseDecl(Ctx.getTranslationUnitDecl());
@@ -257,8 +263,7 @@ int RunCommand(const std::string &Command) noexcept {
 
 std::string MakeTempDir(const std::string &Prefix) noexcept {
   llvm::SmallString<128> TempDir;
-  std::error_code EC =
-      llvm::sys::fs::createUniqueDirectory(Prefix, TempDir);
+  std::error_code EC = llvm::sys::fs::createUniqueDirectory(Prefix, TempDir);
   EXPECT_FALSE(EC);
   return TempDir.str().str();
 }
@@ -266,23 +271,22 @@ std::string MakeTempDir(const std::string &Prefix) noexcept {
 } // namespace
 
 GTEST_TEST(Coverage, TypeSolverPaths) {
-  static const char *const Code =
-      "typedef unsigned long size_t;"
-      "int get_int();"
-      "long get_long();"
-      "size_t get_size();"
-      "struct Incomplete;"
-      "struct Complete { int x; };"
-      "void test() {"
-      "  int a = get_int();"
-      "  long b = get_long();"
-      "  unsigned int c = 0u;"
-      "  int n = 3;"
-      "  for (int i = 0; i < n; ++i) { (void)i; }"
-      "  int casted = (int)get_int();"
-      "  int literal = 42;"
-      "  (void)casted; (void)literal;"
-      "}";
+  static const char *const Code = "typedef unsigned long size_t;"
+                                  "int get_int();"
+                                  "long get_long();"
+                                  "size_t get_size();"
+                                  "struct Incomplete;"
+                                  "struct Complete { int x; };"
+                                  "void test() {"
+                                  "  int a = get_int();"
+                                  "  long b = get_long();"
+                                  "  unsigned int c = 0u;"
+                                  "  int n = 3;"
+                                  "  for (int i = 0; i < n; ++i) { (void)i; }"
+                                  "  int casted = (int)get_int();"
+                                  "  int literal = 42;"
+                                  "  (void)casted; (void)literal;"
+                                  "}";
 
   ASSERT_TRUE(RunWithAST(Code, [](ASTContext &Ctx) {
     type_correct::TypeSolver Solver;
@@ -394,14 +398,13 @@ GTEST_TEST(Coverage, TypeSolverPaths) {
 }
 
 GTEST_TEST(Coverage, TypeSolverExtraPaths) {
-  static const char *const Code =
-      "int main() {"
-      "  int a = 0;"
-      "  int b = 0;"
-      "  int c = 0;"
-      "  int d = 0;"
-      "  return a + b + c + d;"
-      "}";
+  static const char *const Code = "int main() {"
+                                  "  int a = 0;"
+                                  "  int b = 0;"
+                                  "  int c = 0;"
+                                  "  int d = 0;"
+                                  "  return a + b + c + d;"
+                                  "}";
 
   ASSERT_TRUE(RunWithAST(Code, [](ASTContext &Ctx) {
     type_correct::TypeSolver Solver;
@@ -450,16 +453,17 @@ GTEST_TEST(Coverage, TypeSolverExtraPaths) {
 
     Solver.TarjanStack.push(A);
 
-    auto *Opaque = new (Ctx)
-        OpaqueValueExpr(SourceLocation(), Ctx.IntTy,
-                        type_correct::clang_compat::PrValueKind());
-    Solver.AddLoopComparisonConstraint(A, Opaque, &Ctx);
+    OpaqueValueExpr Opaque(SourceLocation(), Ctx.IntTy,
+                           type_correct::clang_compat::PrValueKind());
+    Solver.AddLoopComparisonConstraint(A, &Opaque, &Ctx);
     Solver.AddLoopComparisonConstraint(A, nullptr, &Ctx);
     EXPECT_FALSE(Solver.HelperGetType(nullptr, &Ctx).has_value());
 
     EXPECT_TRUE(Solver.GetResolvedType(D).has_value());
     IdentifierInfo &DummyId = Ctx.Idents.get("tc_dummy");
-    NamespaceDecl *DummyNS = NamespaceDecl::Create(Ctx, Ctx.getTranslationUnitDecl(), false, SourceLocation(), SourceLocation(), &DummyId, nullptr, false);
+    NamespaceDecl *DummyNS = NamespaceDecl::Create(
+        Ctx, Ctx.getTranslationUnitDecl(), false, SourceLocation(),
+        SourceLocation(), &DummyId, nullptr, false);
     EXPECT_FALSE(Solver.GetResolvedType(DummyNS).has_value());
 
     type_correct::ValueRange EmptyRange;
@@ -469,17 +473,20 @@ GTEST_TEST(Coverage, TypeSolverExtraPaths) {
     Solver.GetOptimalTypeForRange(OnlyMin, Ctx.IntTy, &Ctx);
     Solver.GetOptimalTypeForRange(OnlyMax, Ctx.IntTy, &Ctx);
     Solver.GetOptimalTypeForRange(OnlyNegMin, Ctx.IntTy, &Ctx);
-    Solver.GetOptimalTypeForRange(type_correct::ValueRange(0, 50000), Ctx.IntTy, &Ctx);
-    Solver.GetOptimalTypeForRange(type_correct::ValueRange(0, 0), Ctx.LongLongTy, &Ctx);
-    Solver.GetOptimalTypeForRange(type_correct::ValueRange(-9000000000000000000LL, 0), Ctx.IntTy, &Ctx);
-    Solver.GetOptimalTypeForRange(type_correct::ValueRange(0, 9000000000000000000LL), Ctx.IntTy, &Ctx);
+    Solver.GetOptimalTypeForRange(type_correct::ValueRange(0, 50000), Ctx.IntTy,
+                                  &Ctx);
+    Solver.GetOptimalTypeForRange(type_correct::ValueRange(0, 0),
+                                  Ctx.LongLongTy, &Ctx);
+    Solver.GetOptimalTypeForRange(
+        type_correct::ValueRange(-9000000000000000000LL, 0), Ctx.IntTy, &Ctx);
+    Solver.GetOptimalTypeForRange(
+        type_correct::ValueRange(0, 9000000000000000000LL), Ctx.IntTy, &Ctx);
     Solver.GetResolvedType(nullptr);
     Solver.GetOptimalTypeForRange(type_correct::ValueRange(0, 70000), Ctx.IntTy,
                                   &Ctx);
     Solver.GetOptimalTypeForRange(
-        type_correct::ValueRange(0,
-                                 static_cast<int64_t>(
-                                     std::numeric_limits<uint32_t>::max())),
+        type_correct::ValueRange(
+            0, static_cast<int64_t>(std::numeric_limits<uint32_t>::max())),
         Ctx.IntTy, &Ctx);
     Solver.GetOptimalTypeForRange(
         type_correct::ValueRange(
@@ -490,8 +497,7 @@ GTEST_TEST(Coverage, TypeSolverExtraPaths) {
     Solver.GetOptimalTypeForRange(type_correct::ValueRange(-40000, 40000),
                                   Ctx.IntTy, &Ctx);
     Solver.GetOptimalTypeForRange(
-        type_correct::ValueRange(-3000000000LL, 3000000000LL), Ctx.IntTy,
-        &Ctx);
+        type_correct::ValueRange(-3000000000LL, 3000000000LL), Ctx.IntTy, &Ctx);
 
     auto Updates = Solver.Solve(&Ctx);
     EXPECT_FALSE(Updates.empty());
@@ -503,7 +509,8 @@ GTEST_TEST(Coverage, StructAnalyzerPaths) {
       "#define MACRO_FIELD int macro_field;\n"
       "struct Macro { MACRO_FIELD };\n"
       "struct Packed { __attribute__((packed)) int packed_field; };\n"
-      "struct __attribute__((packed)) PackedRecord { int packed_record_field; };\n"
+      "struct __attribute__((packed)) PackedRecord { int packed_record_field; "
+      "};\n"
       "struct Bits { int bit_field : 1; };\n"
       "union Uni { int union_field; };\n"
       "struct Normal { int normal_field; };\n"
@@ -564,9 +571,9 @@ GTEST_TEST(Coverage, StructAnalyzerPaths) {
 
     SourceLocation FakeLoc = SourceLocation::getFromRawEncoding(1);
     IdentifierInfo &FakeId = Idents.get("fake");
-    VarDecl *Fake = VarDecl::Create(Ctx, Ctx.getTranslationUnitDecl(), FakeLoc,
-                                    FakeLoc, &FakeId, Ctx.IntTy, nullptr,
-                                    SC_None);
+    VarDecl *Fake =
+        VarDecl::Create(Ctx, Ctx.getTranslationUnitDecl(), FakeLoc, FakeLoc,
+                        &FakeId, Ctx.IntTy, nullptr, SC_None);
     AllowAbi.IsBoundaryFixed(Fake, SM);
 
     AllowAbi.IsBoundaryFixed(MacroField, SM);
@@ -576,11 +583,10 @@ GTEST_TEST(Coverage, StructAnalyzerPaths) {
         RecordDecl::Create(Ctx, type_correct::clang_compat::StructTagKind(),
                            Ctx.getTranslationUnitDecl(), SourceLocation(),
                            SourceLocation(), &BadFieldId);
-    FieldDecl *BadField =
-        FieldDecl::Create(Ctx, BadRecord, SourceLocation(), SourceLocation(),
-                          &BadFieldId, Ctx.IntTy,
-                          Ctx.getTrivialTypeSourceInfo(Ctx.IntTy), nullptr,
-                          false, ICIS_NoInit);
+    FieldDecl *BadField = FieldDecl::Create(
+        Ctx, BadRecord, SourceLocation(), SourceLocation(), &BadFieldId,
+        Ctx.IntTy, Ctx.getTrivialTypeSourceInfo(Ctx.IntTy), nullptr, false,
+        ICIS_NoInit);
     EXPECT_FALSE(AllowAbi.CanRewriteField(BadField, SM));
 
     // Exercise CheckFileBoundary paths directly.
@@ -591,8 +597,7 @@ GTEST_TEST(Coverage, StructAnalyzerPaths) {
               BoundaryStatus::Modifiable);
 
     auto SysBuffer = llvm::MemoryBuffer::getMemBuffer("int sys;", "sys.h");
-    FileID SysFile = SM.createFileID(std::move(SysBuffer),
-                                     SrcMgr::C_System);
+    FileID SysFile = SM.createFileID(std::move(SysBuffer), SrcMgr::C_System);
     EXPECT_EQ(AllowAbi.CheckFileBoundary(SysFile, SM), BoundaryStatus::Fixed);
 
     auto MemBuffer = llvm::MemoryBuffer::getMemBuffer("int mem;", "mem.h");
@@ -607,8 +612,7 @@ GTEST_TEST(Coverage, StructAnalyzerPaths) {
       std::ofstream Out(ThirdPartyFile);
       Out << "int t;\n";
     }
-    auto ThirdPartyRef =
-        SM.getFileManager().getFileRef(ThirdPartyFile);
+    auto ThirdPartyRef = SM.getFileManager().getFileRef(ThirdPartyFile);
     bool HasThirdParty = static_cast<bool>(ThirdPartyRef);
     ASSERT_TRUE(HasThirdParty);
     FileID ThirdPartyID =
@@ -633,8 +637,7 @@ GTEST_TEST(Coverage, StructAnalyzerPaths) {
       Out << "int p;\n";
     }
     StructAnalyzer ProjectAnalyzer(true, false, ProjectDir);
-    auto ProjectRef =
-        SM.getFileManager().getFileRef(ProjectFile);
+    auto ProjectRef = SM.getFileManager().getFileRef(ProjectFile);
     bool HasProject = static_cast<bool>(ProjectRef);
     ASSERT_TRUE(HasProject);
     FileID ProjectID =
@@ -692,7 +695,8 @@ GTEST_TEST(Coverage, StructAnalyzerPaths) {
                                   llvm::sys::fs::perms::all_all);
 
     std::string OutsideDir = TempDir + "/outside_dir/child";
-    EXPECT_TRUE(ProjectAnalyzer.IsExternalPath(TempDir + "/outside_dir/file.h"));
+    EXPECT_TRUE(
+        ProjectAnalyzer.IsExternalPath(TempDir + "/outside_dir/file.h"));
     EXPECT_TRUE(ProjectAnalyzer.AnalyzeCMakeDependency(OutsideDir));
 
     AllowAbi.AnalyzeTruncationSafety(NormalField, nullptr, &Ctx);
@@ -793,41 +797,40 @@ GTEST_TEST(Coverage, FactManagerPaths) {
 }
 
 GTEST_TEST(Coverage, TypeCorrectExtraPaths) {
-  static const char *const Code =
-      "#define TYPE_OF(x) int\n"
-      "#define INIT_VAR int\n"
-      "#define CAST_INT(v) ((int)(v))\n"
-      "typedef unsigned long size_t;"
-      "size_t get_size();"
-      "template <typename T> struct Box {"
-      "  void push_back() {}"
-      "  void push_back(T) {}"
-      "  void emplace_back(T) {}"
-      "  void clear() {}"
-      "};"
-      "Box<int> make_box();"
-      "struct Holder { Box<int> member_box; };"
-      "struct NonTpl { void push_back(int) {} };"
-      "int main() {"
-      "  TYPE_OF(1) y;"
-      "  y = get_size();"
-      "  INIT_VAR x = get_size();"
-      "  auto z = get_size();"
-      "  int w = (int)1;"
-      "  int q = CAST_INT(2);"
-      "  int *p = &w;"
-      "  *p = 3;"
-      "  Box<int> b;"
-      "  b.clear();"
-      "  b.push_back();"
-      "  b.emplace_back(1);"
-      "  make_box().push_back(1);"
-      "  Holder h;"
-      "  h.member_box.push_back(1);"
-      "  NonTpl nt;"
-      "  nt.push_back(1);"
-      "  (void)z; (void)w; (void)q;"
-      "}";
+  static const char *const Code = "#define TYPE_OF(x) int\n"
+                                  "#define INIT_VAR int\n"
+                                  "#define CAST_INT(v) ((int)(v))\n"
+                                  "typedef unsigned long size_t;"
+                                  "size_t get_size();"
+                                  "template <typename T> struct Box {"
+                                  "  void push_back() {}"
+                                  "  void push_back(T) {}"
+                                  "  void emplace_back(T) {}"
+                                  "  void clear() {}"
+                                  "};"
+                                  "Box<int> make_box();"
+                                  "struct Holder { Box<int> member_box; };"
+                                  "struct NonTpl { void push_back(int) {} };"
+                                  "int main() {"
+                                  "  TYPE_OF(1) y;"
+                                  "  y = get_size();"
+                                  "  INIT_VAR x = get_size();"
+                                  "  auto z = get_size();"
+                                  "  int w = (int)1;"
+                                  "  int q = CAST_INT(2);"
+                                  "  int *p = &w;"
+                                  "  *p = 3;"
+                                  "  Box<int> b;"
+                                  "  b.clear();"
+                                  "  b.push_back();"
+                                  "  b.emplace_back(1);"
+                                  "  make_box().push_back(1);"
+                                  "  Holder h;"
+                                  "  h.member_box.push_back(1);"
+                                  "  NonTpl nt;"
+                                  "  nt.push_back(1);"
+                                  "  (void)z; (void)w; (void)q;"
+                                  "}";
 
   // Use the actual TypeCorrect AST action.
   class TestTypeCorrectAction : public clang::ASTFrontendAction {
@@ -864,8 +867,8 @@ GTEST_TEST(Coverage, CliPaths) {
 
   ASSERT_EQ(RunCommand("\"" + CliPath + "\""), 1);
 
-  std::string CmdBase = "\"" + CliPath + "\" -p \"" + BuildDir +
-                        "\" \"" + Input + "\"";
+  std::string CmdBase =
+      "\"" + CliPath + "\" -p \"" + BuildDir + "\" \"" + Input + "\"";
 
   EXPECT_EQ(RunCommand(CmdBase), 0);
   EXPECT_EQ(RunCommand(CmdBase + " --audit"), 0);
@@ -897,9 +900,9 @@ GTEST_TEST(Coverage, CliPaths) {
     Out << "X\tint\t0\t0\n";
   }
 
-  EXPECT_EQ(RunCommand(CmdBase + " --phase=reduce --facts-dir=\"" +
-                       FactsDir + "\""),
-            0);
+  EXPECT_EQ(
+      RunCommand(CmdBase + " --phase=reduce --facts-dir=\"" + FactsDir + "\""),
+      0);
 
   std::string UnreadableFactsDir = MakeTempDir("type_correct_unreadable_facts");
   std::string NoReadFile = UnreadableFactsDir + "/unreadable.facts";
@@ -952,20 +955,18 @@ GTEST_TEST(Coverage, CliPaths) {
     std::ofstream Out(ReadOnlyDir + "/chunk.facts");
     Out << "X\tint\t0\t0\n";
   }
-  llvm::sys::fs::setPermissions(
-      ReadOnlyDir,
-      llvm::sys::fs::perms::owner_read | llvm::sys::fs::perms::owner_exe);
+  llvm::sys::fs::setPermissions(ReadOnlyDir,
+                                llvm::sys::fs::perms::owner_read |
+                                    llvm::sys::fs::perms::owner_exe);
   EXPECT_EQ(RunCommand(CmdBase + " --phase=reduce --facts-dir=\"" +
                        ReadOnlyDir + "\""),
             0);
-  llvm::sys::fs::setPermissions(ReadOnlyDir,
-                                llvm::sys::fs::perms::all_all);
+  llvm::sys::fs::setPermissions(ReadOnlyDir, llvm::sys::fs::perms::all_all);
 
   std::string MissingInput = ReadOnlyDir + "/missing.cpp";
   EXPECT_NE(RunCommand("\"" + CliPath + "\" -p \"" + BuildDir + "\" \"" +
-                       MissingInput +
-                       "\" --phase=iterative --facts-dir=\"" + FactsDir +
-                       "\" --max-iterations=1"),
+                       MissingInput + "\" --phase=iterative --facts-dir=\"" +
+                       FactsDir + "\" --max-iterations=1"),
             0);
 }
 
@@ -1077,13 +1078,16 @@ GTEST_TEST(Coverage, TypeCorrectHelperFunctions) {
 
     const MemberExpr *Member = FindFirstMemberExpr(Ctx);
     const DeclRefExpr *DeclRef = FindFirstDeclRef(Ctx);
-    const Expr *Literal =
-        IntegerLiteral::Create(Ctx, llvm::APInt(32, 7), Ctx.IntTy,
-                               SourceLocation());
-    EXPECT_FALSE(type_correct::test_support::ResolveNamedDeclForTest(nullptr).has_value());
-    EXPECT_TRUE(type_correct::test_support::ResolveNamedDeclForTest(DeclRef).has_value());
-    EXPECT_TRUE(type_correct::test_support::ResolveNamedDeclForTest(Member).has_value());
-    EXPECT_FALSE(type_correct::test_support::ResolveNamedDeclForTest(Literal).has_value());
+    const Expr *Literal = IntegerLiteral::Create(Ctx, llvm::APInt(32, 7),
+                                                 Ctx.IntTy, SourceLocation());
+    EXPECT_FALSE(type_correct::test_support::ResolveNamedDeclForTest(nullptr)
+                     .has_value());
+    EXPECT_TRUE(type_correct::test_support::ResolveNamedDeclForTest(DeclRef)
+                    .has_value());
+    EXPECT_TRUE(type_correct::test_support::ResolveNamedDeclForTest(Member)
+                    .has_value());
+    EXPECT_FALSE(type_correct::test_support::ResolveNamedDeclForTest(Literal)
+                     .has_value());
 
     EXPECT_FALSE(type_correct::test_support::IsIdentifierForTest(""));
     EXPECT_FALSE(type_correct::test_support::IsIdentifierForTest("1bad"));
@@ -1130,8 +1134,7 @@ GTEST_TEST(Coverage, TypeCorrectEnsureTemplateArgUpdateEdges) {
     ASSERT_NE(PlainDecl, nullptr);
 
     type_correct::test_support::CoverEnsureTemplateArgUpdateEdges(
-        Ctx, VecDecl, PlainDecl, NumDecl,
-        const_cast<VarDecl *>(VecDecl));
+        Ctx, VecDecl, PlainDecl, NumDecl, const_cast<VarDecl *>(VecDecl));
   }));
 }
 
@@ -1142,7 +1145,8 @@ GTEST_TEST(Coverage, TypeCorrectMapEdgeCases) {
     Rewriter.setSourceMgr(Ctx.getSourceManager(), Ctx.getLangOpts());
     type_correct::test_support::CoverTemplateUpdateMapEdges(Ctx, Rewriter);
     type_correct::test_support::CoverDeclUpdateMapEdges(Ctx, Rewriter);
-    EXPECT_TRUE(type_correct::test_support::CoverMacroScannerEdges(Ctx, Rewriter));
+    EXPECT_TRUE(
+        type_correct::test_support::CoverMacroScannerEdges(Ctx, Rewriter));
     type_correct::test_support::CoverRecordChangeEdges(Ctx, Rewriter);
   }));
 }
@@ -1159,8 +1163,8 @@ GTEST_TEST(Coverage, TypeCorrectRedundantCastEdges) {
     SourceLocation MacroLoc =
         SM.createExpansionLoc(MainLoc, MainLoc, MainLoc, 1);
 
-    auto MakeCast = [&](Expr *SubExpr, SourceLocation Begin,
-                        SourceLocation End, TypeSourceInfo *TSI) {
+    auto MakeCast = [&](Expr *SubExpr, SourceLocation Begin, SourceLocation End,
+                        TypeSourceInfo *TSI) {
       const CXXCastPath *BasePath = nullptr;
 #if LLVM_VERSION_MAJOR >= 19
       return CStyleCastExpr::Create(
@@ -1177,8 +1181,8 @@ GTEST_TEST(Coverage, TypeCorrectRedundantCastEdges) {
 
     auto *LiteralMain =
         IntegerLiteral::Create(Ctx, llvm::APInt(32, 1), Ctx.IntTy, MainLoc);
-    auto *CastDuplicate = MakeCast(
-        LiteralMain, MainLoc, MainLoc, Ctx.getTrivialTypeSourceInfo(Ctx.IntTy));
+    auto *CastDuplicate = MakeCast(LiteralMain, MainLoc, MainLoc,
+                                   Ctx.getTrivialTypeSourceInfo(Ctx.IntTy));
     Matcher.ExplicitCasts.push_back(CastDuplicate);
     Matcher.ExplicitCasts.push_back(CastDuplicate);
 
@@ -1190,77 +1194,67 @@ GTEST_TEST(Coverage, TypeCorrectRedundantCastEdges) {
     Matcher.ExplicitCasts.push_back(CastInvalid);
 
     auto OtherBuffer = llvm::MemoryBuffer::getMemBuffer("int x;", "other.h");
-    FileID OtherFile =
-        SM.createFileID(std::move(OtherBuffer), SrcMgr::C_User);
+    FileID OtherFile = SM.createFileID(std::move(OtherBuffer), SrcMgr::C_User);
     SourceLocation OtherLoc = SM.getLocForStartOfFile(OtherFile);
     auto *LiteralOther =
         IntegerLiteral::Create(Ctx, llvm::APInt(32, 3), Ctx.IntTy, OtherLoc);
-    auto *CastOther =
-        MakeCast(LiteralOther, OtherLoc, OtherLoc,
-                 Ctx.getTrivialTypeSourceInfo(Ctx.IntTy));
+    auto *CastOther = MakeCast(LiteralOther, OtherLoc, OtherLoc,
+                               Ctx.getTrivialTypeSourceInfo(Ctx.IntTy));
     Matcher.ExplicitCasts.push_back(CastOther);
 
-    auto *CastNoSub = MakeCast(
-        LiteralMain, MainLoc, MainLoc, Ctx.getTrivialTypeSourceInfo(Ctx.IntTy));
+    auto *CastNoSub = MakeCast(LiteralMain, MainLoc, MainLoc,
+                               Ctx.getTrivialTypeSourceInfo(Ctx.IntTy));
     Matcher.ExplicitCasts.push_back(CastNoSub);
 
     auto *LiteralSubInvalid = IntegerLiteral::Create(
         Ctx, llvm::APInt(32, 4), Ctx.IntTy, SourceLocation());
-    auto *CastSubInvalid =
-        MakeCast(LiteralSubInvalid, MainLoc, MainLoc,
-                 Ctx.getTrivialTypeSourceInfo(Ctx.IntTy));
+    auto *CastSubInvalid = MakeCast(LiteralSubInvalid, MainLoc, MainLoc,
+                                    Ctx.getTrivialTypeSourceInfo(Ctx.IntTy));
     Matcher.ExplicitCasts.push_back(CastSubInvalid);
 
     auto *BinSubEndInvalid = BinaryOperator::Create(
         Ctx, LiteralMain, LiteralSubInvalid, BO_Add, Ctx.IntTy,
         type_correct::clang_compat::PrValueKind(), OK_Ordinary, MainLoc,
         clang::FPOptionsOverride());
-    auto *CastSubEndInvalid =
-        MakeCast(BinSubEndInvalid, MainLoc, MainLoc,
-                 Ctx.getTrivialTypeSourceInfo(Ctx.IntTy));
+    auto *CastSubEndInvalid = MakeCast(BinSubEndInvalid, MainLoc, MainLoc,
+                                       Ctx.getTrivialTypeSourceInfo(Ctx.IntTy));
     Matcher.ExplicitCasts.push_back(CastSubEndInvalid);
 
     auto *LiteralSubMacro =
         IntegerLiteral::Create(Ctx, llvm::APInt(32, 5), Ctx.IntTy, MacroLoc);
-    auto *CastSubMacro =
-        MakeCast(LiteralSubMacro, MainLoc, MainLoc,
-                 Ctx.getTrivialTypeSourceInfo(Ctx.IntTy));
+    auto *CastSubMacro = MakeCast(LiteralSubMacro, MainLoc, MainLoc,
+                                  Ctx.getTrivialTypeSourceInfo(Ctx.IntTy));
     Matcher.ExplicitCasts.push_back(CastSubMacro);
 
     auto *BinSubEndMacro = BinaryOperator::Create(
         Ctx, LiteralMain, LiteralSubMacro, BO_Add, Ctx.IntTy,
         type_correct::clang_compat::PrValueKind(), OK_Ordinary, MainLoc,
         clang::FPOptionsOverride());
-    auto *CastSubEndMacro =
-        MakeCast(BinSubEndMacro, MainLoc, MainLoc,
-                 Ctx.getTrivialTypeSourceInfo(Ctx.IntTy));
+    auto *CastSubEndMacro = MakeCast(BinSubEndMacro, MainLoc, MainLoc,
+                                     Ctx.getTrivialTypeSourceInfo(Ctx.IntTy));
     Matcher.ExplicitCasts.push_back(CastSubEndMacro);
 
-    auto *Opaque = new (Ctx)
-        OpaqueValueExpr(MainLoc, Ctx.IntTy,
-                        type_correct::clang_compat::PrValueKind());
-    auto *CastNullType =
-        MakeCast(Opaque, MainLoc, MainLoc,
-                 Ctx.getTrivialTypeSourceInfo(Ctx.IntTy));
+    OpaqueValueExpr Opaque(MainLoc, Ctx.IntTy,
+                           type_correct::clang_compat::PrValueKind());
+    auto *CastNullType = MakeCast(&Opaque, MainLoc, MainLoc,
+                                  Ctx.getTrivialTypeSourceInfo(Ctx.IntTy));
     CastNullType->setTypeInfoAsWritten(nullptr);
     Matcher.ExplicitCasts.push_back(CastNullType);
 
     auto EmptyBuffer = llvm::MemoryBuffer::getMemBuffer("", "empty.h");
-    FileID EmptyFile =
-        SM.createFileID(std::move(EmptyBuffer), SrcMgr::C_User);
+    FileID EmptyFile = SM.createFileID(std::move(EmptyBuffer), SrcMgr::C_User);
     SourceLocation EmptyLoc = SM.getLocForStartOfFile(EmptyFile);
     auto *LiteralEmpty =
         IntegerLiteral::Create(Ctx, llvm::APInt(32, 6), Ctx.IntTy, EmptyLoc);
-    auto *CastEmptyText =
-        MakeCast(LiteralEmpty, MainLoc, MainLoc,
-                 Ctx.getTrivialTypeSourceInfo(Ctx.IntTy));
+    auto *CastEmptyText = MakeCast(LiteralEmpty, MainLoc, MainLoc,
+                                   Ctx.getTrivialTypeSourceInfo(Ctx.IntTy));
     Matcher.ExplicitCasts.push_back(CastEmptyText);
 
     Matcher.ProcessRedundantCasts(Ctx);
 
-    TypeCorrectMatcher AuditMatcher(
-        Rewriter, false, false, "", "", false, false, true,
-        type_correct::Phase::Standalone, "", "");
+    TypeCorrectMatcher AuditMatcher(Rewriter, false, false, "", "", false,
+                                    false, true,
+                                    type_correct::Phase::Standalone, "", "");
     AuditMatcher.ExplicitCasts.push_back(CastDuplicate);
     AuditMatcher.ProcessRedundantCasts(Ctx);
   }));

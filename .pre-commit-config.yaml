@@ -1,0 +1,130 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+      - id: mixed-line-ending
+        args: ['--fix=lf']
+
+  - repo: local
+    hooks:
+      - id: code-format-fix-and-recheck
+        name: Check code formatting (auto-fix and recheck)
+        entry: >-
+          bash -c 'set -euo pipefail;
+          FIND_TOOL() {
+            if command -v "$1" >/dev/null 2>&1; then command -v "$1";
+            elif [[ -x "/opt/homebrew/opt/llvm/bin/$1" ]]; then echo "/opt/homebrew/opt/llvm/bin/$1";
+            elif [[ -x "/usr/local/opt/llvm/bin/$1" ]]; then echo "/usr/local/opt/llvm/bin/$1";
+            else return 1; fi;
+          };
+          CLANG_FORMAT="$(FIND_TOOL clang-format)";
+          mapfile_cpp=();
+          while IFS= read -r f; do
+            mapfile_cpp+=("$f");
+          done < <(git ls-files "*.cpp" "*.h" "*.c");
+          if [[ ${#mapfile_cpp[@]} -gt 0 ]]; then
+            "$CLANG_FORMAT" -i "${mapfile_cpp[@]}";
+            "$CLANG_FORMAT" --dry-run --Werror "${mapfile_cpp[@]}";
+          fi;
+          if command -v ruff >/dev/null 2>&1; then
+            ruff check --select I --fix scripts/;
+            ruff format scripts/;
+            ruff format --check scripts/;
+          fi'
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: build
+        name: Build
+        entry: >-
+          bash -c 'set -euo pipefail;
+          ROOT="$(git rev-parse --show-toplevel)";
+          BUILD_DIR="${BUILD_DIR:-${ROOT}/build}";
+          CMAKE_EXTRA_ARGS=();
+          if [[ -n "${CT_Clang_INSTALL_DIR:-}" ]]; then
+            CMAKE_EXTRA_ARGS+=("-DCT_Clang_INSTALL_DIR=${CT_Clang_INSTALL_DIR}");
+          elif [[ ! -f "${BUILD_DIR}/CMakeCache.txt" ]]; then
+            if command -v llvm-config >/dev/null 2>&1; then
+              CMAKE_EXTRA_ARGS+=("-DCT_Clang_INSTALL_DIR=$(llvm-config --prefix)");
+            elif [[ -d "/opt/homebrew/opt/llvm" ]]; then
+              CMAKE_EXTRA_ARGS+=("-DCT_Clang_INSTALL_DIR=/opt/homebrew/opt/llvm");
+            elif [[ -d "/usr/local/opt/llvm" ]]; then
+              CMAKE_EXTRA_ARGS+=("-DCT_Clang_INSTALL_DIR=/usr/local/opt/llvm");
+            fi;
+          fi;
+          cmake -S "${ROOT}" -B "${BUILD_DIR}" -DTYPE_CORRECT_ENABLE_COVERAGE=ON -DTYPE_CORRECT_ENABLE_DOC_COVERAGE=ON ${CMAKE_EXTRA_ARGS[@]+"${CMAKE_EXTRA_ARGS[@]}"};
+          cmake --build "${BUILD_DIR}"'
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: test
+        name: Test
+        entry: >-
+          bash -c 'set -euo pipefail;
+          ROOT="$(git rev-parse --show-toplevel)";
+          BUILD_DIR="${BUILD_DIR:-${ROOT}/build}";
+          ctest --test-dir "${BUILD_DIR}" --output-on-failure'
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: lint
+        name: Lint
+        entry: >-
+          bash -c 'set -euo pipefail;
+          ROOT="$(git rev-parse --show-toplevel)";
+          BUILD_DIR="${BUILD_DIR:-${ROOT}/build}";
+          FIND_TOOL() {
+            if command -v "$1" >/dev/null 2>&1; then command -v "$1";
+            elif command -v llvm-config >/dev/null 2>&1 && [[ -x "$(llvm-config --bindir)/$1" ]]; then echo "$(llvm-config --bindir)/$1";
+            elif [[ -x "/opt/homebrew/opt/llvm/bin/$1" ]]; then echo "/opt/homebrew/opt/llvm/bin/$1";
+            elif [[ -x "/usr/local/opt/llvm/bin/$1" ]]; then echo "/usr/local/opt/llvm/bin/$1";
+            else return 1; fi;
+          };
+          CLANG_TIDY="$(FIND_TOOL clang-tidy || true)";
+          if [[ -n "${CLANG_TIDY}" ]]; then
+            "${CLANG_TIDY}" -p "${BUILD_DIR}" --quiet "${ROOT}"/type_correct/*.cpp "${ROOT}"/type_correct/CTU/*.cpp;
+          fi;
+          if command -v cppcheck >/dev/null 2>&1; then
+            cppcheck --enable=warning,performance,portability --error-exitcode=1 --inline-suppr --suppress=missingIncludeSystem --suppress=missingInclude --suppress=unknownMacro --quiet "${ROOT}"/type_correct/*.cpp "${ROOT}"/type_correct/CTU/*.cpp;
+          fi;
+          if command -v ruff >/dev/null 2>&1; then
+            ruff check "${ROOT}/scripts/";
+          fi;
+          if command -v shellcheck >/dev/null 2>&1; then
+            shellcheck "${ROOT}"/scripts/*.sh "${ROOT}/.githooks/pre-commit";
+          fi'
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: update-doc-coverage-shield
+        name: Add/update '% doc coverage' shield in README.md
+        entry: >-
+          bash -c 'set -euo pipefail;
+          ROOT="$(git rev-parse --show-toplevel)";
+          BUILD_DIR="${BUILD_DIR:-${ROOT}/build}";
+          cmake --build "${BUILD_DIR}" --target doc-coverage;
+          if [[ -f "${BUILD_DIR}/coverage.txt" ]]; then
+            python3 "${ROOT}/scripts/update_coverage_badges.py" --build-dir "${BUILD_DIR}" --readme "${ROOT}/README.md" --fail-under-doc 100;
+          fi'
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: update-test-coverage-shield
+        name: Add/update '% test coverage' shield in README.md
+        entry: >-
+          bash -c 'set -euo pipefail;
+          ROOT="$(git rev-parse --show-toplevel)";
+          BUILD_DIR="${BUILD_DIR:-${ROOT}/build}";
+          bash "${ROOT}/scripts/coverage_badges.sh" "${BUILD_DIR}"'
+        language: system
+        pass_filenames: false
+        always_run: true

@@ -9,18 +9,18 @@ jobs:
   build:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Install Ninja and Google Test
         run: |
           brew install ninja googletest
       - name: Cache llvm-project
         id: cache-llvm-project
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: llvm-project
           key: ${{ runner.os }}-llvm-project-cd708029e0b2869e80abe31ddb175f7c35361f90
       - name: Clone llvm-project
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: "llvm/llvm-project"
           ref: llvmorg-19.1.7
@@ -31,14 +31,14 @@ jobs:
         if: steps.cache-llvm-project.outputs.cache-hit != 'true'
         run: |
           mkdir "$GITHUB_WORKSPACE"'/llvm-project/build' && cd "$_"
-          cmake -G Ninja 
-            -DCMAKE_BUILD_TYPE='Release' 
-            -DLLVM_ENABLE_PROJECTS='clang' 
-            -DLLVM_ENABLE_RUNTIMES='libcxx;libcxxabi' 
-            -DLLVM_TARGETS_TO_BUILD='host;X86' 
-            -DLLVM_OPTIMIZED_TABLEGEN='ON' 
-            -DLLVM_INCLUDE_TESTS='OFF' 
-            -DDEFAULT_SYSROOT="$(xcrun --show-sdk-path)" 
+          cmake -G Ninja
+            -DCMAKE_BUILD_TYPE='Release'
+            -DLLVM_ENABLE_PROJECTS='clang'
+            -DLLVM_ENABLE_RUNTIMES='libcxx;libcxxabi'
+            -DLLVM_TARGETS_TO_BUILD='host;X86'
+            -DLLVM_OPTIMIZED_TABLEGEN='ON'
+            -DLLVM_INCLUDE_TESTS='OFF'
+            -DDEFAULT_SYSROOT="$(xcrun --show-sdk-path)"
             ../llvm
           cmake --build .
       - name: Build type-correct + run tests

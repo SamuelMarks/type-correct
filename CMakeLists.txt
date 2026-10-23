@@ -39,20 +39,20 @@ endif ()
 
 # Visibility Settings
 # -------------------
-# Hide symbols by default to reduce binary size and collision probability, 
+# Hide symbols by default to reduce binary size and collision probability,
 # exposing only explicitly exported, public API symbols.
 set(CMAKE_C_VISIBILITY_PRESET hidden)
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 
 # Variable: CMAKE_VISIBILITY_INLINES_HIDDEN
-# Description: On Darwin/macOS, LLVM is built with this flag. Matching it avoids 
+# Description: On Darwin/macOS, LLVM is built with this flag. Matching it avoids
 # visibility mismatch warnings during linking.
 set(CMAKE_VISIBILITY_INLINES_HIDDEN YES)
 
 # Compile Commands
 # ----------------
 # Variable: CMAKE_EXPORT_COMPILE_COMMANDS
-# Description: Generates 'compile_commands.json'. This is required for LibTooling 
+# Description: Generates 'compile_commands.json'. This is required for LibTooling
 # based tools (including this project itself) to parse source code accurately.
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -138,8 +138,8 @@ endif ()
 # Status Messages
 message(STATUS "Found Clang ${LLVM_PACKAGE_VERSION}")
 message(STATUS "Using ClangConfig.cmake in: ${CT_Clang_INSTALL_DIR}")
-message("CLANG STATUS: 
-  Includes (clang)    ${CLANG_INCLUDE_DIRS} 
+message("CLANG STATUS:
+  Includes (clang)    ${CLANG_INCLUDE_DIRS}
   Includes (llvm)     ${LLVM_INCLUDE_DIRS}")
 
 # Include Paths

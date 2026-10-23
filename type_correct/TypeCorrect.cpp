@@ -9,6 +9,7 @@
 #include "ClangCompat.h"
 
 #include <algorithm>
+#include <cctype>
 #include <clang/AST/ASTContext.h>
 #include <clang/AST/Decl.h>
 #include <clang/AST/Expr.h>
@@ -24,7 +25,6 @@
 #include <llvm/Support/Casting.h>
 #include <llvm/Support/MemoryBuffer.h>
 #include <llvm/Support/raw_ostream.h>
-#include <cctype>
 
 using namespace clang;
 using namespace clang::ast_matchers;
@@ -168,10 +168,11 @@ struct TemplateArgUpdate {
 
 class TypeCorrectVisitor : public RecursiveASTVisitor<TypeCorrectVisitor> {
 public:
-  TypeCorrectVisitor(
-      StructAnalyzer &StructEngine, bool ExpandAuto, ASTContext &Ctx,
-      llvm::DenseMap<const NamedDecl *, DeclUpdate> &DeclUpdates,
-      llvm::DenseMap<const VarDecl *, TemplateArgUpdate> &TemplateUpdates) noexcept
+  TypeCorrectVisitor(StructAnalyzer &StructEngine, bool ExpandAuto,
+                     ASTContext &Ctx,
+                     llvm::DenseMap<const NamedDecl *, DeclUpdate> &DeclUpdates,
+                     llvm::DenseMap<const VarDecl *, TemplateArgUpdate>
+                         &TemplateUpdates) noexcept
       : StructEngine(StructEngine), ExpandAuto(ExpandAuto), Ctx(Ctx),
         SM(Ctx.getSourceManager()), LangOpts(Ctx.getLangOpts()),
         DeclUpdates(DeclUpdates), TemplateUpdates(TemplateUpdates) {}
@@ -291,8 +292,8 @@ private:
 
     if (Update.IsMacroType) {
       std::string Text =
-          Lexer::getSourceText(
-              CharSourceRange::getTokenRange(Update.TypeRange), SM, LangOpts)
+          Lexer::getSourceText(CharSourceRange::getTokenRange(Update.TypeRange),
+                               SM, LangOpts)
               .str();
       llvm::StringRef Trimmed = llvm::StringRef(Text).trim();
       if (IsIdentifier(Trimmed))
@@ -307,8 +308,8 @@ private:
       const auto *FD = cast<FieldDecl>(ND);
       Update.CanRewrite = StructEngine.CanRewriteField(FD, SM);
     } else {
-      Update.CanRewrite = Update.CanRewrite &&
-                          !StructEngine.IsBoundaryFixed(ND, SM);
+      Update.CanRewrite =
+          Update.CanRewrite && !StructEngine.IsBoundaryFixed(ND, SM);
     }
 
     DeclUpdates[ND] = Update;
@@ -395,7 +396,8 @@ void ApplyTemplateUpdates(
     clang::Rewriter &Rewriter, bool AuditMode,
     std::vector<type_correct::ChangeRecord> &Changes, ASTContext &Ctx,
     llvm::DenseMap<const NamedDecl *, DeclUpdate> &DeclUpdates,
-    llvm::DenseMap<const VarDecl *, TemplateArgUpdate> &TemplateUpdates) noexcept {
+    llvm::DenseMap<const VarDecl *, TemplateArgUpdate>
+        &TemplateUpdates) noexcept {
   SourceManager &SM = Rewriter.getSourceMgr();
 
   for (auto &Entry : TemplateUpdates) {
@@ -473,9 +475,9 @@ std::map<std::string, QualType> CollectMacroUpdates(
   return MacroUpdates;
 }
 
-void ApplyMacroUpdates(clang::Rewriter &Rewriter, bool AuditMode,
-                       ASTContext &Ctx,
-                       const std::map<std::string, QualType> &MacroUpdates) noexcept {
+void ApplyMacroUpdates(
+    clang::Rewriter &Rewriter, bool AuditMode, ASTContext &Ctx,
+    const std::map<std::string, QualType> &MacroUpdates) noexcept {
   SourceManager &SM = Rewriter.getSourceMgr();
   FileID MainFile = SM.getMainFileID();
   llvm::StringRef Buffer = SM.getBufferData(MainFile);
@@ -511,8 +513,7 @@ void ApplyMacroUpdates(clang::Rewriter &Rewriter, bool AuditMode,
         }
 
         if (NameStart != Pos && (Pos >= Line.size() || Line[Pos] != '(')) {
-          std::string MacroName =
-              Line.substr(NameStart, Pos - NameStart).str();
+          std::string MacroName = Line.substr(NameStart, Pos - NameStart).str();
           auto UpdateIt = MacroUpdates.find(MacroName);
           if (UpdateIt != MacroUpdates.end()) {
             while (Pos < Line.size() && IsSpace(Line[Pos]))
@@ -564,30 +565,20 @@ TypeCorrectMatcher::~TypeCorrectMatcher() noexcept {}
 // ✅ CONSTRUCTOR (REQUIRED)
 //------------------------------------------------------------------------------
 TypeCorrectMatcher::TypeCorrectMatcher(
-    clang::Rewriter &Rewriter,
-    bool UseDecltype,
-    bool ExpandAuto,
-    std::string ProjectRoot,
-    std::string ExcludePattern,
-    bool InPlace,
-    bool EnableAbiBreakingChanges,
-    bool AuditMode,
-    type_correct::Phase CurrentPhase,
-    std::string FactsOutputDir,
+    clang::Rewriter &Rewriter, bool UseDecltype, bool ExpandAuto,
+    std::string ProjectRoot, std::string ExcludePattern, bool InPlace,
+    bool EnableAbiBreakingChanges, bool AuditMode,
+    type_correct::Phase CurrentPhase, std::string FactsOutputDir,
     std::string ReportFile) noexcept
-    : Rewriter(Rewriter),
-      UseDecltype(UseDecltype),
-      ExpandAuto(ExpandAuto),
+    : Rewriter(Rewriter), UseDecltype(UseDecltype), ExpandAuto(ExpandAuto),
       ProjectRoot(std::move(ProjectRoot)),
-      ExcludePattern(std::move(ExcludePattern)),
-      InPlace(InPlace),
+      ExcludePattern(std::move(ExcludePattern)), InPlace(InPlace),
       AuditMode(AuditMode),
-      StructEngine(EnableAbiBreakingChanges, false, ProjectRoot),
-      CurrentPhase(CurrentPhase),
-      FactsOutputDir(std::move(FactsOutputDir)),
+      StructEngine(EnableAbiBreakingChanges, false, this->ProjectRoot),
+      CurrentPhase(CurrentPhase), FactsOutputDir(std::move(FactsOutputDir)),
       ReportFile(std::move(ReportFile)) {}
 
-std::vector<type_correct::ChangeRecord>
+const std::vector<type_correct::ChangeRecord> &
 TypeCorrectMatcher::GetChanges() const noexcept {
   return Changes;
 }
@@ -595,8 +586,7 @@ TypeCorrectMatcher::GetChanges() const noexcept {
 //------------------------------------------------------------------------------
 // ✅ Match callback (REQUIRED VIRTUAL)
 //------------------------------------------------------------------------------
-void TypeCorrectMatcher::run(
-    const MatchFinder::MatchResult &Result) noexcept {
+void TypeCorrectMatcher::run(const MatchFinder::MatchResult &Result) noexcept {
   if (const auto *Cast =
           Result.Nodes.getNodeAs<ExplicitCastExpr>("explicit_cast")) {
     ExplicitCasts.push_back(Cast);
@@ -700,28 +690,14 @@ void TypeCorrectMatcher::onEndOfTranslationUnit(ASTContext &Ctx) noexcept {
 // ✅ ASTConsumer constructor
 //------------------------------------------------------------------------------
 TypeCorrectASTConsumer::TypeCorrectASTConsumer(
-    clang::Rewriter &Rewriter,
-    bool UseDecltype,
-    bool ExpandAuto,
-    const std::string &ProjectRoot,
-    const std::string &ExcludePattern,
-    bool InPlace,
-    bool EnableAbiBreakingChanges,
-    bool AuditMode,
-    type_correct::Phase CurrentPhase,
-    const std::string &FactsOutputDir,
+    clang::Rewriter &Rewriter, bool UseDecltype, bool ExpandAuto,
+    const std::string &ProjectRoot, const std::string &ExcludePattern,
+    bool InPlace, bool EnableAbiBreakingChanges, bool AuditMode,
+    type_correct::Phase CurrentPhase, const std::string &FactsOutputDir,
     const std::string &ReportFile) noexcept
-    : Handler(Rewriter,
-              UseDecltype,
-              ExpandAuto,
-              ProjectRoot,
-              ExcludePattern,
-              InPlace,
-              EnableAbiBreakingChanges,
-              AuditMode,
-              CurrentPhase,
-              FactsOutputDir,
-              ReportFile) {
+    : Handler(Rewriter, UseDecltype, ExpandAuto, ProjectRoot, ExcludePattern,
+              InPlace, EnableAbiBreakingChanges, AuditMode, CurrentPhase,
+              FactsOutputDir, ReportFile) {
 
   Finder.addMatcher(explicitCastExpr().bind("explicit_cast"), &Handler);
 }
@@ -777,48 +753,45 @@ TYPE_CORRECT_EXPORT void CoverVisitorEdgeCases(ASTContext &Ctx) noexcept {
 
   IdentifierInfo &Id = Ctx.Idents.get("tc_edge_var");
   VarDecl *VD = VarDecl::Create(
-      Ctx, Ctx.getTranslationUnitDecl(), SourceLocation(), SourceLocation(), &Id,
-      Ctx.IntTy, Ctx.getTrivialTypeSourceInfo(Ctx.IntTy), SC_None);
+      Ctx, Ctx.getTranslationUnitDecl(), SourceLocation(), SourceLocation(),
+      &Id, Ctx.IntTy, Ctx.getTrivialTypeSourceInfo(Ctx.IntTy), SC_None);
   Visitor.TestRegisterDecl(VD, false);
   Visitor.TestRegisterDecl(VD, false);
 
   VarDecl *ImplicitVD = VarDecl::Create(
-      Ctx, Ctx.getTranslationUnitDecl(), SourceLocation(), SourceLocation(), &Id,
-      Ctx.IntTy, Ctx.getTrivialTypeSourceInfo(Ctx.IntTy), SC_None);
+      Ctx, Ctx.getTranslationUnitDecl(), SourceLocation(), SourceLocation(),
+      &Id, Ctx.IntTy, Ctx.getTrivialTypeSourceInfo(Ctx.IntTy), SC_None);
   ImplicitVD->setImplicit(true);
   Visitor.TestVisitVarDecl(ImplicitVD);
 
-  RecordDecl *DummyRec =
-      RecordDecl::Create(Ctx, type_correct::clang_compat::StructTagKind(),
-                         Ctx.getTranslationUnitDecl(), SourceLocation(),
-                         SourceLocation(), &Id);
-  FieldDecl *ImplicitFD =
-      FieldDecl::Create(Ctx, DummyRec, SourceLocation(), SourceLocation(), &Id,
-                        Ctx.IntTy, Ctx.getTrivialTypeSourceInfo(Ctx.IntTy),
-                        nullptr, false, ICIS_NoInit);
+  RecordDecl *DummyRec = RecordDecl::Create(
+      Ctx, type_correct::clang_compat::StructTagKind(),
+      Ctx.getTranslationUnitDecl(), SourceLocation(), SourceLocation(), &Id);
+  FieldDecl *ImplicitFD = FieldDecl::Create(
+      Ctx, DummyRec, SourceLocation(), SourceLocation(), &Id, Ctx.IntTy,
+      Ctx.getTrivialTypeSourceInfo(Ctx.IntTy), nullptr, false, ICIS_NoInit);
   ImplicitFD->setImplicit(true);
   Visitor.TestVisitFieldDecl(ImplicitFD);
 
-  SourceLocation MainLoc =
-      Ctx.getSourceManager().getLocForStartOfFile(Ctx.getSourceManager().getMainFileID());
+  SourceLocation MainLoc = Ctx.getSourceManager().getLocForStartOfFile(
+      Ctx.getSourceManager().getMainFileID());
   QualType AutoTy = Ctx.getAutoDeductType();
   TypeSourceInfo *AutoTSI = Ctx.getTrivialTypeSourceInfo(AutoTy, MainLoc);
-  VarDecl *AutoVD = VarDecl::Create(
-      Ctx, Ctx.getTranslationUnitDecl(), MainLoc, MainLoc, &Id, AutoTy, AutoTSI,
-      SC_None);
+  VarDecl *AutoVD = VarDecl::Create(Ctx, Ctx.getTranslationUnitDecl(), MainLoc,
+                                    MainLoc, &Id, AutoTy, AutoTSI, SC_None);
   TypeCorrectVisitor ExpandAutoVisitor(Engine, true, Ctx, DeclUpdates,
                                        TemplateUpdates);
   ExpandAutoVisitor.TestRegisterDecl(AutoVD, false);
 
   IdentifierInfo &NoTsiId = Ctx.Idents.get("tc_no_tsi");
-  VarDecl *NoTsi = VarDecl::Create(Ctx, Ctx.getTranslationUnitDecl(),
-                                   SourceLocation(), SourceLocation(), &NoTsiId,
-                                   Ctx.IntTy, nullptr, SC_None);
+  VarDecl *NoTsi =
+      VarDecl::Create(Ctx, Ctx.getTranslationUnitDecl(), SourceLocation(),
+                      SourceLocation(), &NoTsiId, Ctx.IntTy, nullptr, SC_None);
   NoTsi->setTypeSourceInfo(nullptr);
   Visitor.TestRegisterDecl(NoTsi, false);
 
-  auto *Literal =
-      IntegerLiteral::Create(Ctx, llvm::APInt(32, 1), Ctx.IntTy, SourceLocation());
+  auto *Literal = IntegerLiteral::Create(Ctx, llvm::APInt(32, 1), Ctx.IntTy,
+                                         SourceLocation());
   Visitor.TestUpdateDeclType(nullptr, Literal);
   Visitor.TestUpdateDeclType(VD, nullptr);
 
@@ -828,16 +801,16 @@ TYPE_CORRECT_EXPORT void CoverVisitorEdgeCases(ASTContext &Ctx) noexcept {
       &NewId, Ctx.IntTy, Ctx.getTrivialTypeSourceInfo(Ctx.IntTy), SC_None);
   Visitor.TestUpdateDeclType(NewDecl, Literal);
 
-  auto *Opaque = new (Ctx)
-      OpaqueValueExpr(SourceLocation(), Ctx.IntTy,
-                      type_correct::clang_compat::PrValueKind());
-  Visitor.TestUpdateDeclType(VD, Opaque);
+  OpaqueValueExpr Opaque(SourceLocation(), Ctx.IntTy,
+                         type_correct::clang_compat::PrValueKind());
+  Visitor.TestUpdateDeclType(VD, &Opaque);
 }
 
-TYPE_CORRECT_EXPORT void CoverEnsureTemplateArgUpdateEdges(
-    ASTContext &Ctx, const VarDecl *TemplateDecl,
-    const VarDecl *NonTemplateDecl, const VarDecl *NonTypeTemplateDecl,
-    VarDecl *TrivialTemplateDecl) noexcept {
+TYPE_CORRECT_EXPORT void
+CoverEnsureTemplateArgUpdateEdges(ASTContext &Ctx, const VarDecl *TemplateDecl,
+                                  const VarDecl *NonTemplateDecl,
+                                  const VarDecl *NonTypeTemplateDecl,
+                                  VarDecl *TrivialTemplateDecl) noexcept {
   StructAnalyzer Engine(true, true, "");
   llvm::DenseMap<const NamedDecl *, DeclUpdate> DeclUpdates;
   llvm::DenseMap<const VarDecl *, TemplateArgUpdate> TemplateUpdates;
@@ -847,9 +820,9 @@ TYPE_CORRECT_EXPORT void CoverEnsureTemplateArgUpdateEdges(
   Visitor.TestEnsureTemplateArgUpdate(TemplateDecl);
 
   IdentifierInfo &NoTsiId = Ctx.Idents.get("tc_template_no_tsi");
-  VarDecl *NoTsi = VarDecl::Create(Ctx, Ctx.getTranslationUnitDecl(),
-                                   SourceLocation(), SourceLocation(), &NoTsiId,
-                                   Ctx.IntTy, nullptr, SC_None);
+  VarDecl *NoTsi =
+      VarDecl::Create(Ctx, Ctx.getTranslationUnitDecl(), SourceLocation(),
+                      SourceLocation(), &NoTsiId, Ctx.IntTy, nullptr, SC_None);
   NoTsi->setTypeSourceInfo(nullptr);
   Visitor.TestEnsureTemplateArgUpdate(NoTsi);
 
@@ -861,8 +834,8 @@ TYPE_CORRECT_EXPORT void CoverEnsureTemplateArgUpdateEdges(
   Visitor.TestEnsureTemplateArgUpdate(TrivialTemplateDecl);
 }
 
-TYPE_CORRECT_EXPORT void CoverTemplateUpdateMapEdges(ASTContext &Ctx,
-                                                     Rewriter &Rewriter) noexcept {
+TYPE_CORRECT_EXPORT void
+CoverTemplateUpdateMapEdges(ASTContext &Ctx, Rewriter &Rewriter) noexcept {
   llvm::DenseMap<const NamedDecl *, DeclUpdate> DeclUpdates;
   llvm::DenseMap<const VarDecl *, TemplateArgUpdate> TemplateUpdates;
   std::vector<type_correct::ChangeRecord> Changes;
@@ -905,8 +878,9 @@ TYPE_CORRECT_EXPORT void CoverTemplateUpdateMapEdges(ASTContext &Ctx,
       TemplateArgUpdate{InvalidRange, Ctx.IntTy, Ctx.LongTy, SourceRange()};
 
   const VarDecl *InvalidEndRange = MakeVar("tc_tpl_invalid_end");
-  TemplateUpdates[InvalidEndRange] = TemplateArgUpdate{
-      InvalidEndRange, Ctx.IntTy, Ctx.LongTy, SourceRange(FileLoc, SourceLocation())};
+  TemplateUpdates[InvalidEndRange] =
+      TemplateArgUpdate{InvalidEndRange, Ctx.IntTy, Ctx.LongTy,
+                        SourceRange(FileLoc, SourceLocation())};
 
   const VarDecl *MacroRange = MakeVar("tc_tpl_macro");
   TemplateUpdates[MacroRange] = TemplateArgUpdate{
@@ -1043,10 +1017,9 @@ TYPE_CORRECT_EXPORT void CoverRecordChangeEdges(ASTContext &Ctx,
   RecordChange(Changes, SM, Ctx, nullptr, Ctx.IntTy, Ctx.LongTy);
 
   IdentifierInfo &BadId = Ctx.Idents.get("tc_badloc");
-  VarDecl *BadDecl =
-      VarDecl::Create(Ctx, Ctx.getTranslationUnitDecl(), SourceLocation(),
-                      SourceLocation(), &BadId, Ctx.IntTy,
-                      Ctx.getTrivialTypeSourceInfo(Ctx.IntTy), SC_None);
+  VarDecl *BadDecl = VarDecl::Create(
+      Ctx, Ctx.getTranslationUnitDecl(), SourceLocation(), SourceLocation(),
+      &BadId, Ctx.IntTy, Ctx.getTrivialTypeSourceInfo(Ctx.IntTy), SC_None);
   RecordChange(Changes, SM, Ctx, BadDecl, Ctx.IntTy, Ctx.LongTy);
 
   IdentifierInfo &FakeId = Ctx.Idents.get("tc_fakeloc");

@@ -33,19 +33,21 @@ using namespace clang::tooling;
 // Grouping options makes the help output (--help) much more readable by
 // separating tool-specific flags from generic LLVM/Clang flags.
 
-static llvm::cl::OptionCategory CoreCategory(
-    "Core Options", "Basic configuration for file processing and rewriting.");
+static llvm::cl::OptionCategory
+    CoreCategory("Core Options",
+                 "Basic configuration for file processing and rewriting.");
 
-static llvm::cl::OptionCategory CTUCategory(
-    "CTU Options",
-    "Cross-Translation Unit analysis for global type consistency.");
+static llvm::cl::OptionCategory
+    CTUCategory("CTU Options",
+                "Cross-Translation Unit analysis for global type consistency.");
 
-static llvm::cl::OptionCategory SafetyCategory(
-    "Safety Options",
-    "Configuration for ABI stability and boundary detection.");
+static llvm::cl::OptionCategory
+    SafetyCategory("Safety Options",
+                   "Configuration for ABI stability and boundary detection.");
 
-static llvm::cl::OptionCategory ReportingCategory(
-    "Reporting Options", "Audit, dry-run, and JSON reporting configuration.");
+static llvm::cl::OptionCategory
+    ReportingCategory("Reporting Options",
+                      "Audit, dry-run, and JSON reporting configuration.");
 
 //===----------------------------------------------------------------------===//
 // Core Options
@@ -53,9 +55,10 @@ static llvm::cl::OptionCategory ReportingCategory(
 
 static llvm::cl::opt<std::string> ProjectRootOpt(
     "project-root",
-    llvm::cl::desc("Absolute path to the project root directory.\n"
-                   "Required for correct header rewriting and boundary detection."
-                   "Files outside this root are treated as external/system."),
+    llvm::cl::desc(
+        "Absolute path to the project root directory.\n"
+        "Required for correct header rewriting and boundary detection."
+        "Files outside this root are treated as external/system."),
     llvm::cl::cat(CoreCategory));
 
 static llvm::cl::opt<std::string> ExcludeOpt(
@@ -66,13 +69,11 @@ static llvm::cl::opt<std::string> ExcludeOpt(
 
 static llvm::cl::opt<bool> InPlaceOpt(
     "in-place",
-    llvm::cl::desc(
-        "Apply changes directly to source files on disk.\n"
-        "If omitted, modified code is printed to stdout."),
+    llvm::cl::desc("Apply changes directly to source files on disk.\n"
+                   "If omitted, modified code is printed to stdout."),
     llvm::cl::cat(CoreCategory));
 
-static llvm::cl::alias InPlaceAlias("i",
-                                    llvm::cl::desc("Alias for --in-place"),
+static llvm::cl::alias InPlaceAlias("i", llvm::cl::desc("Alias for --in-place"),
                                     llvm::cl::aliasopt(InPlaceOpt),
                                     llvm::cl::cat(CoreCategory));
 
@@ -82,9 +83,10 @@ static llvm::cl::alias InPlaceAlias("i",
 
 static llvm::cl::opt<bool> EnableAbiBreakingChangesOpt(
     "enable-abi-breaking-changes",
-    llvm::cl::desc("Allow rewriting of struct/class member fields.\n"
-                   "WARNING: This changes memory layout. Ensure all translation "
-                   "units seeing the struct are recompiled."),
+    llvm::cl::desc(
+        "Allow rewriting of struct/class member fields.\n"
+        "WARNING: This changes memory layout. Ensure all translation "
+        "units seeing the struct are recompiled."),
     llvm::cl::cat(SafetyCategory));
 
 //===----------------------------------------------------------------------===//
@@ -110,18 +112,20 @@ static llvm::cl::opt<std::string> ReportFileOpt(
 
 static llvm::cl::opt<std::string> PhaseOpt(
     "phase",
-    llvm::cl::desc("Execution phase for global type resolution.\n"
-                   "  standalone : Local analysis only (default).\n"
-                   "  iterative  : Run multiple passes to converge on global types.\n"
-                   "  map        : Generate local facts (intermediate step).\n"
-                   "  reduce     : Merge local facts into global facts.\n"
-                   "  apply      : Apply global facts to code."),
+    llvm::cl::desc(
+        "Execution phase for global type resolution.\n"
+        "  standalone : Local analysis only (default).\n"
+        "  iterative  : Run multiple passes to converge on global types.\n"
+        "  map        : Generate local facts (intermediate step).\n"
+        "  reduce     : Merge local facts into global facts.\n"
+        "  apply      : Apply global facts to code."),
     llvm::cl::cat(CTUCategory));
 
 static llvm::cl::opt<std::string> FactsDirOpt(
     "facts-dir",
-    llvm::cl::desc("Directory to store/read intermediate fact files.\n"
-                   "Required for 'iterative', 'map', 'reduce', and 'apply' phases."),
+    llvm::cl::desc(
+        "Directory to store/read intermediate fact files.\n"
+        "Required for 'iterative', 'map', 'reduce', and 'apply' phases."),
     llvm::cl::cat(CTUCategory));
 
 static llvm::cl::opt<int> MaxIterationsOpt(
@@ -177,7 +181,8 @@ public:
 
   std::unique_ptr<clang::FrontendAction> create() noexcept override {
     // Pass strictly strictly parsed options to the action.
-    // Note: ForceRewrite is not exposed in this simplified factory as per current SDK header.
+    // Note: ForceRewrite is not exposed in this simplified factory as per
+    // current SDK header.
     return std::make_unique<TypeCorrectPluginAction>(
         ProjectRootOpt, ExcludeOpt, InPlaceOpt, EnableAbiBreakingChangesOpt,
         AuditOpt, ResolvedPhase, FactsDirOpt, ReportFileOpt);
@@ -207,7 +212,8 @@ bool RunReduce(const std::string &Dir) noexcept {
     std::string Path = It->path();
     if (llvm::sys::path::extension(Path) == ".facts" &&
         llvm::sys::path::filename(Path) != "global.facts") {
-      if (!type_correct::ctu::FactManager::ReadFacts(Path, AllFacts).has_value()) {
+      if (!type_correct::ctu::FactManager::ReadFacts(Path, AllFacts)
+               .has_value()) {
         llvm::errs() << "Warning: Failed to read facts from " << Path << "\n";
       }
     }
@@ -222,12 +228,14 @@ bool RunReduce(const std::string &Dir) noexcept {
   std::string OutPath = Dir + "/global.facts";
 
   // Check for Convergence: Does the new map equal existing file on disk?
-  if (type_correct::ctu::FactManager::IsConvergenceReached(OutPath, MergedMap)) {
+  if (type_correct::ctu::FactManager::IsConvergenceReached(OutPath,
+                                                           MergedMap)) {
     return false; // No change
   }
 
   // Write new state
-  if (type_correct::ctu::FactManager::WriteFacts(OutPath, MergedMap).has_value()) {
+  if (type_correct::ctu::FactManager::WriteFacts(OutPath, MergedMap)
+          .has_value()) {
     llvm::outs() << "Global facts updated at " << OutPath << "\n";
     return true; // Changed
   }
@@ -241,12 +249,12 @@ bool RunReduce(const std::string &Dir) noexcept {
 int main(int argc, const char **argv) noexcept {
   // Use the specific Category to hide unrelated LLVM options from --help
   llvm::Expected<clang::tooling::CommonOptionsParser> eOptParser =
-      clang::tooling::CommonOptionsParser::create(argc, argv,
-                                                  CoreCategory,
+      clang::tooling::CommonOptionsParser::create(argc, argv, CoreCategory,
                                                   llvm::cl::OneOrMore);
 
   if (auto E = eOptParser.takeError()) {
-    llvm::errs() << "Error parsing arguments: " << toString(std::move(E)) << '\n';
+    llvm::errs() << "Error parsing arguments: " << toString(std::move(E))
+                 << '\n';
     return EXIT_FAILURE;
   }
 
@@ -264,7 +272,8 @@ int main(int argc, const char **argv) noexcept {
   // Handle Explicit Reduce
   if (PhaseOpt == "reduce") {
     bool Changed = RunReduce(FactsDirOpt);
-    return Changed ? 1 : 0; // Return 1 if changes occurred (script friendliness)
+    return Changed ? 1
+                   : 0; // Return 1 if changes occurred (script friendliness)
   }
 
   // Clang Tool Setup
@@ -294,7 +303,8 @@ int main(int argc, const char **argv) noexcept {
         return Ret;
       }
 
-      // 2. Run Reduce Check (Merges local facts, checks if global state differs)
+      // 2. Run Reduce Check (Merges local facts, checks if global state
+      // differs)
       bool Changed = RunReduce(FactsDirOpt);
 
       if (!Changed) {
@@ -311,10 +321,11 @@ int main(int argc, const char **argv) noexcept {
       llvm::errs() << "Warning: Max iterations reached without convergence.\n";
     }
 
-    // Optional: Final application pass could go here, or user runs 'apply' manually.
-    // For now, iterative mode updates facts. Rewriting usually happens via side-effect
-    // or a final pass. In the current Matcher design, Iterative mode writes facts
-    // AND writes code if -in-place is set, but usually one wants to solve first, then write.
+    // Optional: Final application pass could go here, or user runs 'apply'
+    // manually. For now, iterative mode updates facts. Rewriting usually
+    // happens via side-effect or a final pass. In the current Matcher design,
+    // Iterative mode writes facts AND writes code if -in-place is set, but
+    // usually one wants to solve first, then write.
     return 0;
   }
 
@@ -322,11 +333,12 @@ int main(int argc, const char **argv) noexcept {
   TypeCorrectActionFactory Factory(P);
 
   // If Audit or Reporting is enabled, we don't strictly need runAndSave
-  // because we handle output manually (Audit prints to stdout, Report writes JSON).
-  // However, runAndSave is required to flush the Rewriter buffers to disk if -in-place is set.
+  // because we handle output manually (Audit prints to stdout, Report writes
+  // JSON). However, runAndSave is required to flush the Rewriter buffers to
+  // disk if -in-place is set.
   if (AuditOpt) {
-      // In Audit mode, we definitely do NOT want to save to disk. Use run().
-      return Tool.run(&Factory);
+    // In Audit mode, we definitely do NOT want to save to disk. Use run().
+    return Tool.run(&Factory);
   }
 
   return Tool.runAndSave(&Factory);

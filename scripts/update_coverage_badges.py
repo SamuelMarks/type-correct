@@ -6,8 +6,8 @@ import re
 import sys
 import urllib.parse
 import xml.etree.ElementTree as ET
-from typing import Any, Dict, Iterable, List, Tuple
-
+from collections.abc import Iterable
+from typing import Any
 
 JSDOC_KINDS = {
     "class",
@@ -86,7 +86,7 @@ def _has_text_value(value: Any) -> bool:
     return False
 
 
-def compute_doxygen_counts(xml_dir: str) -> Tuple[int, int]:
+def compute_doxygen_counts(xml_dir: str) -> tuple[int, int]:
     total = 0
     documented = 0
 
@@ -118,11 +118,11 @@ def compute_doxygen_counts(xml_dir: str) -> Tuple[int, int]:
     return documented, total
 
 
-def compute_jsdoc_counts(report_path: str) -> Tuple[int, int]:
+def compute_jsdoc_counts(report_path: str) -> tuple[int, int]:
     with open(report_path, "r", encoding="utf-8") as handle:
         doclets = json.load(handle)
     if not isinstance(doclets, list):
-        raise RuntimeError(f"JSDoc report must be a list: {report_path}")
+        raise TypeError(f"JSDoc report must be a list: {report_path}")
 
     total = 0
     documented = 0
@@ -162,7 +162,7 @@ def compute_jsdoc_counts(report_path: str) -> Tuple[int, int]:
     return documented, total
 
 
-def _typedoc_comment_has_text(comment: Dict[str, Any]) -> bool:
+def _typedoc_comment_has_text(comment: dict[str, Any]) -> bool:
     if not comment or not isinstance(comment, dict):
         return False
     if _has_text_value(comment.get("shortText")) or _has_text_value(
@@ -193,7 +193,7 @@ def _typedoc_comment_has_text(comment: Dict[str, Any]) -> bool:
     return False
 
 
-def _typedoc_signature_has_text(reflection: Dict[str, Any]) -> bool:
+def _typedoc_signature_has_text(reflection: dict[str, Any]) -> bool:
     for signature in reflection.get("signatures") or []:
         if isinstance(signature, dict) and _typedoc_comment_has_text(
             signature.get("comment")
@@ -208,14 +208,14 @@ def _typedoc_signature_has_text(reflection: Dict[str, Any]) -> bool:
     return False
 
 
-def _typedoc_is_public(reflection: Dict[str, Any]) -> bool:
+def _typedoc_is_public(reflection: dict[str, Any]) -> bool:
     flags = reflection.get("flags") or {}
-    if flags.get("isPrivate") or flags.get("isProtected") or flags.get("isExternal"):
-        return False
-    return True
+    return not (
+        flags.get("isPrivate") or flags.get("isProtected") or flags.get("isExternal")
+    )
 
 
-def _iter_typedoc_reflections(node: Any) -> Iterable[Dict[str, Any]]:
+def _iter_typedoc_reflections(node: Any) -> Iterable[dict[str, Any]]:
     if isinstance(node, dict):
         yield node
         for child in node.get("children") or []:
@@ -225,7 +225,7 @@ def _iter_typedoc_reflections(node: Any) -> Iterable[Dict[str, Any]]:
             yield from _iter_typedoc_reflections(child)
 
 
-def compute_typedoc_counts(report_path: str) -> Tuple[int, int]:
+def compute_typedoc_counts(report_path: str) -> tuple[int, int]:
     with open(report_path, "r", encoding="utf-8") as handle:
         data = json.load(handle)
 
@@ -239,15 +239,15 @@ def compute_typedoc_counts(report_path: str) -> Tuple[int, int]:
         if not _typedoc_is_public(reflection):
             continue
         total += 1
-        if _typedoc_comment_has_text(reflection.get("comment")) or _typedoc_signature_has_text(
-            reflection
-        ):
+        if _typedoc_comment_has_text(
+            reflection.get("comment")
+        ) or _typedoc_signature_has_text(reflection):
             documented += 1
 
     return documented, total
 
 
-def _load_openapi_spec(report_path: str) -> Dict[str, Any]:
+def _load_openapi_spec(report_path: str) -> dict[str, Any]:
     ext = os.path.splitext(report_path)[1].lower()
     with open(report_path, "r", encoding="utf-8") as handle:
         if ext in {".yaml", ".yml"}:
@@ -261,10 +261,10 @@ def _load_openapi_spec(report_path: str) -> Dict[str, Any]:
         return json.load(handle)
 
 
-def compute_openapi_counts(report_path: str) -> Tuple[int, int]:
+def compute_openapi_counts(report_path: str) -> tuple[int, int]:
     spec = _load_openapi_spec(report_path)
     if not isinstance(spec, dict):
-        raise RuntimeError(f"OpenAPI spec must be a JSON/YAML object: {report_path}")
+        raise TypeError(f"OpenAPI spec must be a JSON/YAML object: {report_path}")
 
     paths = spec.get("paths") or {}
     total = 0
@@ -287,11 +287,11 @@ def compute_openapi_counts(report_path: str) -> Tuple[int, int]:
     return documented, total
 
 
-def compute_custom_counts(report_path: str) -> Tuple[int, int]:
+def compute_custom_counts(report_path: str) -> tuple[int, int]:
     with open(report_path, "r", encoding="utf-8") as handle:
         data = json.load(handle)
     if not isinstance(data, dict):
-        raise RuntimeError(
+        raise TypeError(
             f"Custom doc coverage report must be a JSON object: {report_path}"
         )
 
@@ -314,9 +314,7 @@ def parse_test_coverage(report_path: str) -> float:
             if line.startswith("TOTAL"):
                 parts = line.split()
                 if len(parts) < 5:
-                    raise RuntimeError(
-                        f"Unexpected TOTAL line format in {report_path}"
-                    )
+                    raise RuntimeError(f"Unexpected TOTAL line format in {report_path}")
                 value = parts[-4].rstrip("%")
                 return float(value)
     raise RuntimeError(f"TOTAL line not found in {report_path}")
@@ -324,7 +322,7 @@ def parse_test_coverage(report_path: str) -> float:
 
 def format_percent(value: float) -> str:
     if abs(value - round(value)) < 0.005:
-        return f"{int(round(value))}%"
+        return f"{round(value)}%"
     return f"{value:.2f}%"
 
 
@@ -341,8 +339,9 @@ def badge_color(value: float) -> str:
 
 
 def badge_url(label: str, percent_text: str, color: str) -> str:
-    return "https://img.shields.io/badge/{}-{}-{}".format(
-        urllib.parse.quote(label), urllib.parse.quote(percent_text), color
+    return (
+        f"https://img.shields.io/badge/"
+        f"{urllib.parse.quote(label)}-{urllib.parse.quote(percent_text)}-{color}"
     )
 
 
@@ -352,10 +351,10 @@ def update_readme(readme_path: str, doc_pct: float, test_pct: float) -> bool:
 
     doc_text = format_percent(doc_pct)
     test_text = format_percent(test_pct)
-    doc_badge = f"![Doc Coverage]({badge_url('doc coverage', doc_text, badge_color(doc_pct))})"
-    test_badge = (
-        f"![Test Coverage]({badge_url('test coverage', test_text, badge_color(test_pct))})"
+    doc_badge = (
+        f"![Doc Coverage]({badge_url('doc coverage', doc_text, badge_color(doc_pct))})"
     )
+    test_badge = f"![Test Coverage]({badge_url('test coverage', test_text, badge_color(test_pct))})"
     block_lines = [start_marker, doc_badge, test_badge, end_marker]
     block = "\n".join(block_lines)
 
@@ -396,8 +395,8 @@ def resolve_doc_path(generator: str, path: str, build_dir: str) -> str:
 
 
 def parse_doc_sources(
-    sources: List[str], generator: str, doc_path: str, build_dir: str
-) -> List[Tuple[str, str]]:
+    sources: list[str], generator: str, doc_path: str, build_dir: str
+) -> list[tuple[str, str]]:
     if sources:
         parsed = []
         for source in sources:
@@ -424,9 +423,7 @@ def parse_doc_sources(
         if generator == "doxygen":
             doc_path = os.path.join(build_dir, "docs", "xml")
         else:
-            raise RuntimeError(
-                f"--doc-path is required for generator '{generator}'."
-            )
+            raise RuntimeError(f"--doc-path is required for generator '{generator}'.")
     if generator not in SUPPORTED_GENERATORS:
         raise RuntimeError(
             f"Unsupported doc generator '{generator}'. Supported: {', '.join(SUPPORTED_GENERATORS)}"
@@ -434,7 +431,7 @@ def parse_doc_sources(
     return [(generator, resolve_doc_path(generator, doc_path, build_dir))]
 
 
-def compute_doc_coverage(doc_sources: List[Tuple[str, str]]) -> float:
+def compute_doc_coverage(doc_sources: list[tuple[str, str]]) -> float:
     documented_total = 0
     total_total = 0
 

@@ -129,7 +129,8 @@ public:
    * @brief Returns fields flagged as unsafe by Truncation Analysis.
    * @return Set of FieldDecls.
    */
-  std::set<const clang::FieldDecl *> GetLikelyUnsafeFields() const noexcept;
+  const std::set<const clang::FieldDecl *> &
+  GetLikelyUnsafeFields() const noexcept;
 
 private:
   bool AllowABIChanges;

@@ -1,6 +1,7 @@
 /**
  * @file TypeCorrectCAPI.cpp
- * @brief Implementation of the Foreign Function Interface (FFI) for type-correct.
+ * @brief Implementation of the Foreign Function Interface (FFI) for
+ * type-correct.
  */
 
 #include "TypeCorrectCAPI.h"

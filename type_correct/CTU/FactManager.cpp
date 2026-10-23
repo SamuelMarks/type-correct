@@ -49,8 +49,9 @@ static int GetTypeRank(const std::string &T) noexcept {
   return 0;   // Unknown
 }
 
-std::expected<void, std::string> FactManager::WriteFacts(const std::string &FilePath,
-                             const std::map<std::string, SymbolFact> &Facts) noexcept {
+std::expected<void, std::string> FactManager::WriteFacts(
+    const std::string &FilePath,
+    const std::map<std::string, SymbolFact> &Facts) noexcept {
   std::ofstream Out(FilePath);
   if (!Out.is_open()) {
     llvm::errs() << "Failed to open output fact file: " << FilePath << "\n";
@@ -69,8 +70,9 @@ std::expected<void, std::string> FactManager::WriteFacts(const std::string &File
   return {};
 }
 
-std::expected<void, std::string> FactManager::ReadFacts(const std::string &FilePath,
-                            std::vector<SymbolFact> &OutFacts) noexcept {
+std::expected<void, std::string>
+FactManager::ReadFacts(const std::string &FilePath,
+                       std::vector<SymbolFact> &OutFacts) noexcept {
   std::ifstream In(FilePath);
   if (!In.is_open()) {
     return std::unexpected("Failed to open input fact file: " + FilePath);
@@ -134,7 +136,8 @@ bool FactManager::IsConvergenceReached(
   // 1. Read existing facts from the previous global state
   std::vector<SymbolFact> ExistingVector;
   if (!ReadFacts(GlobalFilePath, ExistingVector).has_value()) {
-    // If the file doesn't exist or is unreadable, we haven't converged (initial state)
+    // If the file doesn't exist or is unreadable, we haven't converged (initial
+    // state)
     return false;
   }
 
