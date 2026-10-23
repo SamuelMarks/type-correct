@@ -55,15 +55,14 @@ jobs:
           cmake --build .
       - name: Build type-correct + run tests
         run: |
-          export C_INCLUDE_PATH='/usr/lib/llvm-19/lib/clang/19.1.7/include'
-          # Or '/usr/lib/gcc/x86_64-linux-gnu/19/include'
-          # …or '/usr/include/linux'?
+          export C_INCLUDE_PATH="$GITHUB_WORKSPACE/llvm-project/build/lib/clang/19/include"
+          GCC_INC_DIR="$(gcc -print-file-name=include)"
           mkdir "$GITHUB_WORKSPACE"'/build' && cd "$_"
           cmake --system-information
           # Test with Clang_DIR
-          cmake 
-             -DClang_DIR="$GITHUB_WORKSPACE/llvm-project/build/lib/cmake/clang/" 
-             -DCMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES='/usr/lib/gcc/x86_64-linux-gnu/19/include' 
+          cmake \
+             -DClang_DIR="$GITHUB_WORKSPACE/llvm-project/build/lib/cmake/clang/" \
+             -DCMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES="$GCC_INC_DIR" \
              ../
           cmake --build .
-          ctest -VV -CRelease . || ( test -f 'Testing/Temporary/LastTest.log' && cat "$_" && exit 1 )
+          ctest --output-on-failure -VV -CRelease . || ( test -f 'Testing/Temporary/LastTest.log' && cat "$_" && exit 1 )

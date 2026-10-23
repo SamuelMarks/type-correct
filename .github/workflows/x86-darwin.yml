@@ -19,4 +19,4 @@ jobs:
           mkdir "$GITHUB_WORKSPACE"'/build' && cd "$_"
           cmake -DCT_Clang_INSTALL_DIR="$(brew --prefix llvm)"/  ../
           cmake --build .
-          ctest .
+          ctest --output-on-failure .

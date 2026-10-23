@@ -901,7 +901,8 @@ GTEST_TEST(Coverage, CliPaths) {
                        FactsDir + "\""),
             0);
 
-  std::string NoReadFile = FactsDir + "/unreadable.facts";
+  std::string UnreadableFactsDir = MakeTempDir("type_correct_unreadable_facts");
+  std::string NoReadFile = UnreadableFactsDir + "/unreadable.facts";
   {
     std::ofstream Out(NoReadFile);
     Out << "Y\tlong\t0\t0\n";
@@ -909,8 +910,8 @@ GTEST_TEST(Coverage, CliPaths) {
   llvm::sys::fs::setPermissions(NoReadFile, llvm::sys::fs::no_perms);
 
   EXPECT_EQ(RunCommand(CmdBase + " --phase=reduce --facts-dir=\"" +
-                       FactsDir + "\""),
-            0);
+                       UnreadableFactsDir + "\""),
+            1);
 
   llvm::sys::fs::setPermissions(NoReadFile, llvm::sys::fs::perms::all_all);
 

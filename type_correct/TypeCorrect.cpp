@@ -37,7 +37,7 @@ TypeLoc GetBaseTypeLoc(TypeLoc TL) noexcept {
       TL = QTL.getUnqualifiedLoc();
       continue;
     }
-#if LLVM_VERSION_MAJOR < 19
+#if LLVM_VERSION_MAJOR < 22
     if (auto ETL = TL.getAs<clang::ElaboratedTypeLoc>()) {
       TL = ETL.getNamedTypeLoc();
       continue;
@@ -969,6 +969,12 @@ TYPE_CORRECT_EXPORT void CoverDeclUpdateMapEdges(ASTContext &Ctx,
   MacroUpdateB.Decl = MacroB;
   MacroUpdateB.DesiredType = Ctx.LongTy;
   DeclUpdates[MacroB] = MacroUpdateB;
+
+  const VarDecl *MacroC = MakeVar("tc_macro_c");
+  DeclUpdate MacroUpdateC = MacroUpdateA;
+  MacroUpdateC.Decl = MacroC;
+  MacroUpdateC.DesiredType = Ctx.UnsignedLongLongTy;
+  DeclUpdates[MacroC] = MacroUpdateC;
 
   const VarDecl *InvalidRange = MakeVar("tc_decl_invalid");
   DeclUpdate InvalidUpdate;
