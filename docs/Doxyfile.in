@@ -13,7 +13,9 @@ EXTRACT_STATIC         = NO
 HIDE_UNDOC_MEMBERS     = NO
 HIDE_UNDOC_CLASSES     = NO
 INPUT                  = \
+  "@CMAKE_SOURCE_DIR@/type_correct/ClangCompat.h" \
   "@CMAKE_SOURCE_DIR@/type_correct/TypeCorrect.h" \
+  "@CMAKE_SOURCE_DIR@/type_correct/TypeCorrectCAPI.h" \
   "@CMAKE_SOURCE_DIR@/type_correct/TypeCorrectMain.h" \
   "@CMAKE_SOURCE_DIR@/type_correct/TypeSolver.h" \
   "@CMAKE_SOURCE_DIR@/type_correct/StructAnalyzer.h" \

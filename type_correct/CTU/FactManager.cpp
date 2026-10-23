@@ -31,7 +31,7 @@ static const char DELIMITER = '\t';
  * @param T The type string.
  * @return int Rank (higher is wider).
  */
-static int GetTypeRank(const std::string &T) {
+static int GetTypeRank(const std::string &T) noexcept {
   if (T == "unsigned char" || T == "char")
     return 1;
   if (T == "short" || T == "unsigned short")

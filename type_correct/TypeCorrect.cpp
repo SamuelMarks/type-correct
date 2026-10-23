@@ -31,7 +31,7 @@ using namespace clang::ast_matchers;
 
 namespace {
 
-TypeLoc GetBaseTypeLoc(TypeLoc TL) {
+TypeLoc GetBaseTypeLoc(TypeLoc TL) noexcept {
   while (true) {
     if (auto QTL = TL.getAs<QualifiedTypeLoc>()) {
       TL = QTL.getUnqualifiedLoc();
@@ -43,10 +43,6 @@ TypeLoc GetBaseTypeLoc(TypeLoc TL) {
       continue;
     }
 #endif
-    if (auto ATL = TL.getAs<AttributedTypeLoc>()) {
-      TL = ATL.getModifiedLoc(); // LCOV_EXCL_LINE
-      continue; // LCOV_EXCL_LINE
-    } // LCOV_EXCL_LINE
     if (auto PTL = TL.getAs<PointerTypeLoc>()) {
       TL = PTL.getPointeeLoc();
       continue;
@@ -72,7 +68,7 @@ TypeLoc GetBaseTypeLoc(TypeLoc TL) {
   return TL;
 }
 
-QualType NormalizeType(QualType T) {
+QualType NormalizeType(QualType T) noexcept {
   if (T.isNull())
     return T;
   T = T.getNonReferenceType();
@@ -80,7 +76,7 @@ QualType NormalizeType(QualType T) {
   return T;
 }
 
-QualType GetWiderType(QualType A, QualType B, ASTContext &Ctx) {
+QualType GetWiderType(QualType A, QualType B, ASTContext &Ctx) noexcept {
   if (A.isNull())
     return B;
   if (B.isNull())
@@ -112,7 +108,7 @@ QualType GetWiderType(QualType A, QualType B, ASTContext &Ctx) {
   return A;
 }
 
-std::string TypeToString(QualType T, ASTContext &Ctx) {
+std::string TypeToString(QualType T, ASTContext &Ctx) noexcept {
   if (T.isNull())
     return {};
   PrintingPolicy Policy(Ctx.getLangOpts());
@@ -134,11 +130,15 @@ std::optional<const NamedDecl *> ResolveNamedDecl(const Expr *E) noexcept {
   return std::nullopt;
 }
 
-bool IsIdentifier(llvm::StringRef Text) {
+bool IsIdentifier(llvm::StringRef Text) noexcept {
   if (Text.empty())
     return false;
-  auto IsStart = [](unsigned char C) { return std::isalpha(C) || C == '_'; };
-  auto IsBody = [](unsigned char C) { return std::isalnum(C) || C == '_'; };
+  auto IsStart = [](unsigned char C) noexcept {
+    return std::isalpha(C) || C == '_';
+  };
+  auto IsBody = [](unsigned char C) noexcept {
+    return std::isalnum(C) || C == '_';
+  };
   if (!IsStart(static_cast<unsigned char>(Text.front())))
     return false;
   for (char C : Text.drop_front()) {
@@ -171,12 +171,12 @@ public:
   TypeCorrectVisitor(
       StructAnalyzer &StructEngine, bool ExpandAuto, ASTContext &Ctx,
       llvm::DenseMap<const NamedDecl *, DeclUpdate> &DeclUpdates,
-      llvm::DenseMap<const VarDecl *, TemplateArgUpdate> &TemplateUpdates)
+      llvm::DenseMap<const VarDecl *, TemplateArgUpdate> &TemplateUpdates) noexcept
       : StructEngine(StructEngine), ExpandAuto(ExpandAuto), Ctx(Ctx),
         SM(Ctx.getSourceManager()), LangOpts(Ctx.getLangOpts()),
         DeclUpdates(DeclUpdates), TemplateUpdates(TemplateUpdates) {}
 
-  bool VisitVarDecl(VarDecl *VD) {
+  bool VisitVarDecl(VarDecl *VD) noexcept {
     if (!VD || VD->isImplicit())
       return true;
     if (isa<ParmVarDecl>(VD))
@@ -188,78 +188,74 @@ public:
     return true;
   }
 
-  bool VisitFieldDecl(FieldDecl *FD) {
+  bool VisitFieldDecl(FieldDecl *FD) noexcept {
     if (!FD || FD->isImplicit())
       return true;
     RegisterDecl(FD, true);
     return true;
   }
 
-  bool VisitBinaryOperator(BinaryOperator *BO) {
+  bool VisitBinaryOperator(BinaryOperator *BO) noexcept {
     if (!BO || !BO->isAssignmentOp())
       return true;
     auto TargetOpt = ResolveNamedDecl(BO->getLHS());
     if (!TargetOpt)
-      return true; // LCOV_EXCL_LINE
+      return true;
     const NamedDecl *Target = *TargetOpt;
     UpdateDeclType(Target, BO->getRHS());
     return true;
   }
 
-  bool VisitCXXMemberCallExpr(CXXMemberCallExpr *Call) {
+  bool VisitCXXMemberCallExpr(CXXMemberCallExpr *Call) noexcept {
     if (!Call)
       return true;
     const CXXMethodDecl *Method = Call->getMethodDecl();
-    if (!Method)
-      return true; // LCOV_EXCL_LINE
     llvm::StringRef MethodName = Method->getName();
     if (!(MethodName == "push_back" || MethodName == "emplace_back"))
-      return true; // LCOV_EXCL_LINE
+      return true;
     if (Call->getNumArgs() < 1)
-      return true; // LCOV_EXCL_LINE
+      return true;
 
-    const Expr *Arg = Call->getArg(0);
-    if (Arg)
-      Arg = Arg->IgnoreParenImpCasts();
+    const Expr *Arg = Call->getArg(0)->IgnoreParenImpCasts();
     const Expr *ObjectExpr = Call->getImplicitObjectArgument();
     auto ObjectDeclOpt = ResolveNamedDecl(ObjectExpr);
     if (!ObjectDeclOpt)
-      return true; // LCOV_EXCL_LINE
+      return true;
     const NamedDecl *ObjectDecl = *ObjectDeclOpt;
     const auto *VD = dyn_cast_or_null<VarDecl>(ObjectDecl);
     if (!VD)
-      return true; // LCOV_EXCL_LINE
+      return true;
 
     TemplateArgUpdate *Update = EnsureTemplateArgUpdate(VD);
     if (!Update)
-      return true; // LCOV_EXCL_LINE
+      return true;
     QualType ArgType = NormalizeType(Arg->getType());
     Update->DesiredType = GetWiderType(Update->DesiredType, ArgType, Ctx);
     return true;
   }
 
 #ifdef TYPE_CORRECT_TEST
-  bool TestVisitVarDecl(VarDecl *VD) { return VisitVarDecl(VD); }
-  bool TestVisitFieldDecl(FieldDecl *FD) { return VisitFieldDecl(FD); }
-  bool TestVisitBinaryOperator(BinaryOperator *BO) {
+  bool TestVisitVarDecl(VarDecl *VD) noexcept { return VisitVarDecl(VD); }
+  bool TestVisitFieldDecl(FieldDecl *FD) noexcept { return VisitFieldDecl(FD); }
+  bool TestVisitBinaryOperator(BinaryOperator *BO) noexcept {
     return VisitBinaryOperator(BO);
   }
-  bool TestVisitCXXMemberCallExpr(CXXMemberCallExpr *Call) {
+  bool TestVisitCXXMemberCallExpr(CXXMemberCallExpr *Call) noexcept {
     return VisitCXXMemberCallExpr(Call);
   }
-  DeclUpdate &TestRegisterDecl(const NamedDecl *ND, bool IsField) {
+  DeclUpdate &TestRegisterDecl(const NamedDecl *ND, bool IsField) noexcept {
     return RegisterDecl(ND, IsField);
   }
-  void TestUpdateDeclType(const NamedDecl *ND, const Expr *RHS) {
+  void TestUpdateDeclType(const NamedDecl *ND, const Expr *RHS) noexcept {
     UpdateDeclType(ND, RHS);
   }
-  TemplateArgUpdate *TestEnsureTemplateArgUpdate(const VarDecl *VD) {
+  TemplateArgUpdate *TestEnsureTemplateArgUpdate(const VarDecl *VD) noexcept {
     return EnsureTemplateArgUpdate(VD);
   }
 #endif
 
 private:
-  DeclUpdate &RegisterDecl(const NamedDecl *ND, bool IsField) {
+  DeclUpdate &RegisterDecl(const NamedDecl *ND, bool IsField) noexcept {
     auto It = DeclUpdates.find(ND);
     if (It != DeclUpdates.end())
       return It->second;
@@ -274,7 +270,8 @@ private:
     if (const auto *VD = dyn_cast<VarDecl>(ND)) {
       DeclType = VD->getType();
       TSI = VD->getTypeSourceInfo();
-    } else if (const auto *FD = dyn_cast<FieldDecl>(ND)) {
+    } else {
+      const auto *FD = cast<FieldDecl>(ND);
       DeclType = FD->getType();
       TSI = FD->getTypeSourceInfo();
     }
@@ -290,10 +287,9 @@ private:
 
     TypeLoc BaseLoc = GetBaseTypeLoc(TSI->getTypeLoc());
     Update.TypeRange = BaseLoc.getSourceRange();
-    Update.IsMacroType =
-        BaseLoc.getBeginLoc().isMacroID() || BaseLoc.getEndLoc().isMacroID();
+    Update.IsMacroType = BaseLoc.getBeginLoc().isMacroID();
 
-    if (Update.IsMacroType && !Update.TypeRange.isInvalid()) {
+    if (Update.IsMacroType) {
       std::string Text =
           Lexer::getSourceText(
               CharSourceRange::getTokenRange(Update.TypeRange), SM, LangOpts)
@@ -308,9 +304,8 @@ private:
     }
 
     if (IsField) {
-      const auto *FD = dyn_cast<FieldDecl>(ND);
-      Update.CanRewrite = Update.CanRewrite && FD &&
-                          StructEngine.CanRewriteField(FD, SM);
+      const auto *FD = cast<FieldDecl>(ND);
+      Update.CanRewrite = StructEngine.CanRewriteField(FD, SM);
     } else {
       Update.CanRewrite = Update.CanRewrite &&
                           !StructEngine.IsBoundaryFixed(ND, SM);
@@ -320,7 +315,7 @@ private:
     return DeclUpdates[ND];
   }
 
-  void UpdateDeclType(const NamedDecl *ND, const Expr *RHS) {
+  void UpdateDeclType(const NamedDecl *ND, const Expr *RHS) noexcept {
     if (!ND || !RHS)
       return;
     auto It = DeclUpdates.find(ND);
@@ -330,15 +325,12 @@ private:
     }
 
     const Expr *BaseExpr = RHS->IgnoreParenImpCasts();
-    QualType Candidate =
-        NormalizeType(BaseExpr ? BaseExpr->getType() : RHS->getType());
-    if (Candidate.isNull())
-      return; // LCOV_EXCL_LINE
+    QualType Candidate = NormalizeType(BaseExpr->getType());
     It->second.DesiredType =
         GetWiderType(It->second.DesiredType, Candidate, Ctx);
   }
 
-  TemplateArgUpdate *EnsureTemplateArgUpdate(const VarDecl *VD) {
+  TemplateArgUpdate *EnsureTemplateArgUpdate(const VarDecl *VD) noexcept {
     auto It = TemplateUpdates.find(VD);
     if (It != TemplateUpdates.end())
       return &It->second;
@@ -349,7 +341,7 @@ private:
 
     TypeLoc BaseLoc = GetBaseTypeLoc(TSI->getTypeLoc());
     auto TSTL = BaseLoc.getAs<TemplateSpecializationTypeLoc>();
-    if (!TSTL || TSTL.getNumArgs() < 1)
+    if (!TSTL)
       return nullptr;
 
     TemplateArgumentLoc ArgLoc = TSTL.getArgLoc(0);
@@ -357,13 +349,8 @@ private:
       return nullptr;
 
     const TypeSourceInfo *ArgTSI = ArgLoc.getTypeSourceInfo();
-    if (!ArgTSI)
-      return nullptr; // LCOV_EXCL_LINE
-
     TypeLoc ArgTypeLoc = GetBaseTypeLoc(ArgTSI->getTypeLoc());
     SourceRange ArgRange = ArgTypeLoc.getSourceRange();
-    if (ArgRange.isInvalid())
-      return nullptr; // LCOV_EXCL_LINE
 
     TemplateArgUpdate Update;
     Update.Decl = VD;
@@ -386,7 +373,7 @@ private:
 
 void RecordChange(std::vector<type_correct::ChangeRecord> &Changes,
                   SourceManager &SM, ASTContext &Ctx, const NamedDecl *Decl,
-                  QualType OldType, QualType NewType) {
+                  QualType OldType, QualType NewType) noexcept {
   if (!Decl)
     return;
   SourceLocation Loc = Decl->getLocation();
@@ -408,7 +395,7 @@ void ApplyTemplateUpdates(
     clang::Rewriter &Rewriter, bool AuditMode,
     std::vector<type_correct::ChangeRecord> &Changes, ASTContext &Ctx,
     llvm::DenseMap<const NamedDecl *, DeclUpdate> &DeclUpdates,
-    llvm::DenseMap<const VarDecl *, TemplateArgUpdate> &TemplateUpdates) {
+    llvm::DenseMap<const VarDecl *, TemplateArgUpdate> &TemplateUpdates) noexcept {
   SourceManager &SM = Rewriter.getSourceMgr();
 
   for (auto &Entry : TemplateUpdates) {
@@ -442,7 +429,7 @@ void ApplyTemplateUpdates(
 std::map<std::string, QualType> CollectMacroUpdates(
     clang::Rewriter &Rewriter, bool AuditMode,
     std::vector<type_correct::ChangeRecord> &Changes, ASTContext &Ctx,
-    llvm::DenseMap<const NamedDecl *, DeclUpdate> &DeclUpdates) {
+    llvm::DenseMap<const NamedDecl *, DeclUpdate> &DeclUpdates) noexcept {
   SourceManager &SM = Rewriter.getSourceMgr();
   std::map<std::string, QualType> MacroUpdates;
 
@@ -488,21 +475,18 @@ std::map<std::string, QualType> CollectMacroUpdates(
 
 void ApplyMacroUpdates(clang::Rewriter &Rewriter, bool AuditMode,
                        ASTContext &Ctx,
-                       const std::map<std::string, QualType> &MacroUpdates) {
-  if (MacroUpdates.empty())
-    return; // LCOV_EXCL_LINE
-
+                       const std::map<std::string, QualType> &MacroUpdates) noexcept {
   SourceManager &SM = Rewriter.getSourceMgr();
   FileID MainFile = SM.getMainFileID();
   llvm::StringRef Buffer = SM.getBufferData(MainFile);
   SourceLocation FileStart = SM.getLocForStartOfFile(MainFile);
 
-  auto IsSpace = [](char C) {
-    return C == ' ' || C == '\t' || C == '\r' || C == '\f' || C == '\v';
+  auto IsSpace = [](char C) noexcept {
+    return std::isspace(static_cast<unsigned char>(C)) != 0;
   };
 
   size_t Offset = 0;
-  while (Offset <= Buffer.size()) {
+  while (true) {
     size_t LineEnd = Buffer.find('\n', Offset);
     if (LineEnd == llvm::StringRef::npos)
       LineEnd = Buffer.size();
@@ -515,72 +499,51 @@ void ApplyMacroUpdates(clang::Rewriter &Rewriter, bool AuditMode,
     static const llvm::StringRef DefineTok("#define");
     if (Line.substr(Pos).starts_with(DefineTok)) {
       Pos += DefineTok.size();
-      if (Pos < Line.size() && !IsSpace(Line[Pos])) {
-        Offset = (LineEnd == Buffer.size()) ? Buffer.size() : LineEnd + 1;
-        continue;
-      }
-      while (Pos < Line.size() && IsSpace(Line[Pos]))
-        ++Pos;
+      if (Pos == Line.size() || IsSpace(Line[Pos])) {
+        while (Pos < Line.size() && IsSpace(Line[Pos]))
+          ++Pos;
 
-      size_t NameStart = Pos;
-      while (Pos < Line.size() &&
-             (std::isalnum(static_cast<unsigned char>(Line[Pos])) ||
-              Line[Pos] == '_')) {
-        ++Pos;
-      }
+        size_t NameStart = Pos;
+        while (Pos < Line.size() &&
+               (std::isalnum(static_cast<unsigned char>(Line[Pos])) ||
+                Line[Pos] == '_')) {
+          ++Pos;
+        }
 
-      if (NameStart == Pos) {
-        Offset = (LineEnd == Buffer.size()) ? Buffer.size() : LineEnd + 1;
-        continue;
-      }
+        if (NameStart != Pos && (Pos >= Line.size() || Line[Pos] != '(')) {
+          std::string MacroName =
+              Line.substr(NameStart, Pos - NameStart).str();
+          auto UpdateIt = MacroUpdates.find(MacroName);
+          if (UpdateIt != MacroUpdates.end()) {
+            while (Pos < Line.size() && IsSpace(Line[Pos]))
+              ++Pos;
 
-      std::string MacroName = Line.substr(NameStart, Pos - NameStart).str();
-      if (Pos < Line.size() && Line[Pos] == '(') {
-        Offset = (LineEnd == Buffer.size()) ? Buffer.size() : LineEnd + 1;
-        continue;
-      }
+            size_t ReplStart = Pos;
+            if (ReplStart < Line.size()) {
+              size_t ReplEnd = Line.size();
+              size_t LineComment = Line.find("//", ReplStart);
+              if (LineComment != llvm::StringRef::npos)
+                ReplEnd = std::min(ReplEnd, LineComment);
+              size_t BlockComment = Line.find("/*", ReplStart);
+              if (BlockComment != llvm::StringRef::npos)
+                ReplEnd = std::min(ReplEnd, BlockComment);
+              while (ReplEnd > ReplStart && IsSpace(Line[ReplEnd - 1]))
+                --ReplEnd;
 
-      auto UpdateIt = MacroUpdates.find(MacroName);
-      if (UpdateIt == MacroUpdates.end()) {
-        Offset = (LineEnd == Buffer.size()) ? Buffer.size() : LineEnd + 1;
-        continue;
-      }
-
-      while (Pos < Line.size() && IsSpace(Line[Pos]))
-        ++Pos;
-
-      size_t ReplStart = Pos;
-      if (ReplStart >= Line.size()) {
-        Offset = (LineEnd == Buffer.size()) ? Buffer.size() : LineEnd + 1;
-        continue;
-      }
-
-      size_t ReplEnd = Line.size();
-      size_t LineComment = Line.find("//", ReplStart);
-      if (LineComment != llvm::StringRef::npos)
-        ReplEnd = std::min(ReplEnd, LineComment);
-      size_t BlockComment = Line.find("/*", ReplStart);
-      if (BlockComment != llvm::StringRef::npos)
-        ReplEnd = std::min(ReplEnd, BlockComment);
-      while (ReplEnd > ReplStart && IsSpace(Line[ReplEnd - 1]))
-        --ReplEnd;
-
-      if (ReplEnd <= ReplStart) {
-        Offset = (LineEnd == Buffer.size()) ? Buffer.size() : LineEnd + 1;
-        continue;
-      }
-
-      std::string NewText = TypeToString(UpdateIt->second, Ctx);
-      llvm::StringRef Existing = Line.substr(ReplStart, ReplEnd - ReplStart);
-      if (Existing.trim() == NewText) {
-        Offset = (LineEnd == Buffer.size()) ? Buffer.size() : LineEnd + 1;
-        continue;
-      }
-
-      if (!AuditMode) {
-        SourceLocation ReplaceStart =
-            FileStart.getLocWithOffset(Offset + ReplStart);
-        Rewriter.ReplaceText(ReplaceStart, ReplEnd - ReplStart, NewText);
+              if (ReplEnd > ReplStart) {
+                std::string NewText = TypeToString(UpdateIt->second, Ctx);
+                llvm::StringRef Existing =
+                    Line.substr(ReplStart, ReplEnd - ReplStart);
+                if (Existing.trim() != NewText && !AuditMode) {
+                  SourceLocation ReplaceStart =
+                      FileStart.getLocWithOffset(Offset + ReplStart);
+                  Rewriter.ReplaceText(ReplaceStart, ReplEnd - ReplStart,
+                                       NewText);
+                }
+              }
+            }
+          }
+        }
       }
     }
 
@@ -611,7 +574,7 @@ TypeCorrectMatcher::TypeCorrectMatcher(
     bool AuditMode,
     type_correct::Phase CurrentPhase,
     std::string FactsOutputDir,
-    std::string ReportFile)
+    std::string ReportFile) noexcept
     : Rewriter(Rewriter),
       UseDecltype(UseDecltype),
       ExpandAuto(ExpandAuto),
@@ -624,7 +587,8 @@ TypeCorrectMatcher::TypeCorrectMatcher(
       FactsOutputDir(std::move(FactsOutputDir)),
       ReportFile(std::move(ReportFile)) {}
 
-std::vector<type_correct::ChangeRecord> TypeCorrectMatcher::GetChanges() const {
+std::vector<type_correct::ChangeRecord>
+TypeCorrectMatcher::GetChanges() const noexcept {
   return Changes;
 }
 
@@ -632,14 +596,14 @@ std::vector<type_correct::ChangeRecord> TypeCorrectMatcher::GetChanges() const {
 // ✅ Match callback (REQUIRED VIRTUAL)
 //------------------------------------------------------------------------------
 void TypeCorrectMatcher::run(
-    const MatchFinder::MatchResult &Result) {
+    const MatchFinder::MatchResult &Result) noexcept {
   if (const auto *Cast =
           Result.Nodes.getNodeAs<ExplicitCastExpr>("explicit_cast")) {
     ExplicitCasts.push_back(Cast);
   }
 }
 
-void TypeCorrectMatcher::ProcessRedundantCasts(ASTContext &Ctx) {
+void TypeCorrectMatcher::ProcessRedundantCasts(ASTContext &Ctx) noexcept {
   if (ExplicitCasts.empty())
     return;
 
@@ -662,28 +626,16 @@ void TypeCorrectMatcher::ProcessRedundantCasts(ASTContext &Ctx) {
     if (SM.getFileID(Begin) != SM.getMainFileID())
       continue;
 
-    SourceLocation SubBegin = SubExpr->getBeginLoc();
-    SourceLocation SubEnd = SubExpr->getEndLoc();
-    if (SubBegin.isInvalid() || SubEnd.isInvalid())
-      continue; // LCOV_EXCL_LINE
-    if (SubBegin.isMacroID() || SubEnd.isMacroID())
-      continue; // LCOV_EXCL_LINE
-
     const TypeSourceInfo *CastTypeInfo = Cast->getTypeInfoAsWritten();
     if (!CastTypeInfo)
-      continue; // LCOV_EXCL_LINE
+      continue;
     QualType CastType = NormalizeType(CastTypeInfo->getType());
     QualType SubType = NormalizeType(SubExpr->getType());
-    if (CastType.isNull() || SubType.isNull())
-      continue; // LCOV_EXCL_LINE
     if (!Ctx.hasSameType(CastType, SubType))
       continue;
 
-    bool InvalidBuffer = false;
-    llvm::StringRef Buffer = SM.getBufferData(SM.getFileID(SubBegin),
-                                              &InvalidBuffer);
-    if (InvalidBuffer)
-      continue; // LCOV_EXCL_LINE
+    SourceLocation SubBegin = SubExpr->getBeginLoc();
+    llvm::StringRef Buffer = SM.getBufferData(SM.getFileID(SubBegin));
 
     std::string SubText;
     if (!Buffer.empty()) {
@@ -704,7 +656,7 @@ void TypeCorrectMatcher::ProcessRedundantCasts(ASTContext &Ctx) {
   ExplicitCasts.clear();
 }
 
-void TypeCorrectMatcher::ProcessNarrowingSafety(ASTContext &Ctx) {
+void TypeCorrectMatcher::ProcessNarrowingSafety(ASTContext &Ctx) noexcept {
   llvm::DenseMap<const NamedDecl *, DeclUpdate> DeclUpdates;
   llvm::DenseMap<const VarDecl *, TemplateArgUpdate> TemplateUpdates;
 
@@ -726,7 +678,7 @@ void TypeCorrectMatcher::ProcessNarrowingSafety(ASTContext &Ctx) {
 //------------------------------------------------------------------------------
 // ✅ End-of-TU hook (REQUIRED VIRTUAL)
 //------------------------------------------------------------------------------
-void TypeCorrectMatcher::onEndOfTranslationUnit(ASTContext &Ctx) {
+void TypeCorrectMatcher::onEndOfTranslationUnit(ASTContext &Ctx) noexcept {
   ProcessRedundantCasts(Ctx);
   ProcessNarrowingSafety(Ctx);
 
@@ -758,7 +710,7 @@ TypeCorrectASTConsumer::TypeCorrectASTConsumer(
     bool AuditMode,
     type_correct::Phase CurrentPhase,
     const std::string &FactsOutputDir,
-    const std::string &ReportFile)
+    const std::string &ReportFile) noexcept
     : Handler(Rewriter,
               UseDecltype,
               ExpandAuto,
@@ -777,7 +729,7 @@ TypeCorrectASTConsumer::TypeCorrectASTConsumer(
 //------------------------------------------------------------------------------
 // ✅ ASTConsumer override
 //------------------------------------------------------------------------------
-void TypeCorrectASTConsumer::HandleTranslationUnit(ASTContext &Ctx) {
+void TypeCorrectASTConsumer::HandleTranslationUnit(ASTContext &Ctx) noexcept {
   Finder.matchAST(Ctx);
   Handler.onEndOfTranslationUnit(Ctx);
 }
@@ -785,33 +737,34 @@ void TypeCorrectASTConsumer::HandleTranslationUnit(ASTContext &Ctx) {
 #ifdef TYPE_CORRECT_TEST
 namespace type_correct::test_support {
 
-TYPE_CORRECT_EXPORT TypeLoc GetBaseTypeLocForTest(TypeLoc TL) {
+TYPE_CORRECT_EXPORT TypeLoc GetBaseTypeLocForTest(TypeLoc TL) noexcept {
   return GetBaseTypeLoc(TL);
 }
 
-TYPE_CORRECT_EXPORT QualType NormalizeTypeForTest(QualType T) {
+TYPE_CORRECT_EXPORT QualType NormalizeTypeForTest(QualType T) noexcept {
   return NormalizeType(T);
 }
 
 TYPE_CORRECT_EXPORT QualType GetWiderTypeForTest(QualType A, QualType B,
-                                                 ASTContext &Ctx) {
+                                                 ASTContext &Ctx) noexcept {
   return GetWiderType(A, B, Ctx);
 }
 
 TYPE_CORRECT_EXPORT std::string TypeToStringForTest(QualType T,
-                                                    ASTContext &Ctx) {
+                                                    ASTContext &Ctx) noexcept {
   return TypeToString(T, Ctx);
 }
 
-TYPE_CORRECT_EXPORT std::optional<const NamedDecl *> ResolveNamedDeclForTest(const Expr *E) {
+TYPE_CORRECT_EXPORT std::optional<const NamedDecl *>
+ResolveNamedDeclForTest(const Expr *E) noexcept {
   return ResolveNamedDecl(E);
 }
 
-TYPE_CORRECT_EXPORT bool IsIdentifierForTest(llvm::StringRef Text) {
+TYPE_CORRECT_EXPORT bool IsIdentifierForTest(llvm::StringRef Text) noexcept {
   return IsIdentifier(Text);
 }
 
-TYPE_CORRECT_EXPORT void CoverVisitorEdgeCases(ASTContext &Ctx) {
+TYPE_CORRECT_EXPORT void CoverVisitorEdgeCases(ASTContext &Ctx) noexcept {
   StructAnalyzer Engine(true, true, "");
   llvm::DenseMap<const NamedDecl *, DeclUpdate> DeclUpdates;
   llvm::DenseMap<const VarDecl *, TemplateArgUpdate> TemplateUpdates;
@@ -828,6 +781,34 @@ TYPE_CORRECT_EXPORT void CoverVisitorEdgeCases(ASTContext &Ctx) {
       Ctx.IntTy, Ctx.getTrivialTypeSourceInfo(Ctx.IntTy), SC_None);
   Visitor.TestRegisterDecl(VD, false);
   Visitor.TestRegisterDecl(VD, false);
+
+  VarDecl *ImplicitVD = VarDecl::Create(
+      Ctx, Ctx.getTranslationUnitDecl(), SourceLocation(), SourceLocation(), &Id,
+      Ctx.IntTy, Ctx.getTrivialTypeSourceInfo(Ctx.IntTy), SC_None);
+  ImplicitVD->setImplicit(true);
+  Visitor.TestVisitVarDecl(ImplicitVD);
+
+  RecordDecl *DummyRec =
+      RecordDecl::Create(Ctx, type_correct::clang_compat::StructTagKind(),
+                         Ctx.getTranslationUnitDecl(), SourceLocation(),
+                         SourceLocation(), &Id);
+  FieldDecl *ImplicitFD =
+      FieldDecl::Create(Ctx, DummyRec, SourceLocation(), SourceLocation(), &Id,
+                        Ctx.IntTy, Ctx.getTrivialTypeSourceInfo(Ctx.IntTy),
+                        nullptr, false, ICIS_NoInit);
+  ImplicitFD->setImplicit(true);
+  Visitor.TestVisitFieldDecl(ImplicitFD);
+
+  SourceLocation MainLoc =
+      Ctx.getSourceManager().getLocForStartOfFile(Ctx.getSourceManager().getMainFileID());
+  QualType AutoTy = Ctx.getAutoDeductType();
+  TypeSourceInfo *AutoTSI = Ctx.getTrivialTypeSourceInfo(AutoTy, MainLoc);
+  VarDecl *AutoVD = VarDecl::Create(
+      Ctx, Ctx.getTranslationUnitDecl(), MainLoc, MainLoc, &Id, AutoTy, AutoTSI,
+      SC_None);
+  TypeCorrectVisitor ExpandAutoVisitor(Engine, true, Ctx, DeclUpdates,
+                                       TemplateUpdates);
+  ExpandAutoVisitor.TestRegisterDecl(AutoVD, false);
 
   IdentifierInfo &NoTsiId = Ctx.Idents.get("tc_no_tsi");
   VarDecl *NoTsi = VarDecl::Create(Ctx, Ctx.getTranslationUnitDecl(),
@@ -856,16 +837,14 @@ TYPE_CORRECT_EXPORT void CoverVisitorEdgeCases(ASTContext &Ctx) {
 TYPE_CORRECT_EXPORT void CoverEnsureTemplateArgUpdateEdges(
     ASTContext &Ctx, const VarDecl *TemplateDecl,
     const VarDecl *NonTemplateDecl, const VarDecl *NonTypeTemplateDecl,
-    VarDecl *TrivialTemplateDecl) {
+    VarDecl *TrivialTemplateDecl) noexcept {
   StructAnalyzer Engine(true, true, "");
   llvm::DenseMap<const NamedDecl *, DeclUpdate> DeclUpdates;
   llvm::DenseMap<const VarDecl *, TemplateArgUpdate> TemplateUpdates;
   TypeCorrectVisitor Visitor(Engine, false, Ctx, DeclUpdates, TemplateUpdates);
 
-  if (TemplateDecl) {
-    Visitor.TestEnsureTemplateArgUpdate(TemplateDecl);
-    Visitor.TestEnsureTemplateArgUpdate(TemplateDecl);
-  }
+  Visitor.TestEnsureTemplateArgUpdate(TemplateDecl);
+  Visitor.TestEnsureTemplateArgUpdate(TemplateDecl);
 
   IdentifierInfo &NoTsiId = Ctx.Idents.get("tc_template_no_tsi");
   VarDecl *NoTsi = VarDecl::Create(Ctx, Ctx.getTranslationUnitDecl(),
@@ -874,21 +853,16 @@ TYPE_CORRECT_EXPORT void CoverEnsureTemplateArgUpdateEdges(
   NoTsi->setTypeSourceInfo(nullptr);
   Visitor.TestEnsureTemplateArgUpdate(NoTsi);
 
-  if (NonTemplateDecl)
-    Visitor.TestEnsureTemplateArgUpdate(NonTemplateDecl);
+  Visitor.TestEnsureTemplateArgUpdate(NonTemplateDecl);
+  Visitor.TestEnsureTemplateArgUpdate(NonTypeTemplateDecl);
 
-  if (NonTypeTemplateDecl)
-    Visitor.TestEnsureTemplateArgUpdate(NonTypeTemplateDecl);
-
-  if (TrivialTemplateDecl) {
-    TrivialTemplateDecl->setTypeSourceInfo(
-        Ctx.getTrivialTypeSourceInfo(TrivialTemplateDecl->getType()));
-    Visitor.TestEnsureTemplateArgUpdate(TrivialTemplateDecl);
-  }
+  TrivialTemplateDecl->setTypeSourceInfo(
+      Ctx.getTrivialTypeSourceInfo(TrivialTemplateDecl->getType()));
+  Visitor.TestEnsureTemplateArgUpdate(TrivialTemplateDecl);
 }
 
 TYPE_CORRECT_EXPORT void CoverTemplateUpdateMapEdges(ASTContext &Ctx,
-                                                     Rewriter &Rewriter) {
+                                                     Rewriter &Rewriter) noexcept {
   llvm::DenseMap<const NamedDecl *, DeclUpdate> DeclUpdates;
   llvm::DenseMap<const VarDecl *, TemplateArgUpdate> TemplateUpdates;
   std::vector<type_correct::ChangeRecord> Changes;
@@ -896,7 +870,7 @@ TYPE_CORRECT_EXPORT void CoverTemplateUpdateMapEdges(ASTContext &Ctx,
   SourceLocation FileLoc = SM.getLocForStartOfFile(SM.getMainFileID());
   SourceLocation MacroLoc = SM.createExpansionLoc(FileLoc, FileLoc, FileLoc, 1);
 
-  auto MakeVar = [&](const char *Name) {
+  auto MakeVar = [&](const char *Name) noexcept {
     IdentifierInfo &Id = Ctx.Idents.get(Name);
     return VarDecl::Create(Ctx, Ctx.getTranslationUnitDecl(), FileLoc, FileLoc,
                            &Id, Ctx.IntTy,
@@ -906,6 +880,10 @@ TYPE_CORRECT_EXPORT void CoverTemplateUpdateMapEdges(ASTContext &Ctx,
   const VarDecl *NullTypes = MakeVar("tc_tpl_null");
   TemplateUpdates[NullTypes] = TemplateArgUpdate{
       NullTypes, QualType(), Ctx.IntTy, SourceRange(FileLoc, FileLoc)};
+
+  const VarDecl *NullDesired = MakeVar("tc_tpl_null_desired");
+  TemplateUpdates[NullDesired] = TemplateArgUpdate{
+      NullDesired, Ctx.IntTy, QualType(), SourceRange(FileLoc, FileLoc)};
 
   const VarDecl *SameTypes = MakeVar("tc_tpl_same");
   TemplateUpdates[SameTypes] = TemplateArgUpdate{
@@ -926,22 +904,35 @@ TYPE_CORRECT_EXPORT void CoverTemplateUpdateMapEdges(ASTContext &Ctx,
   TemplateUpdates[InvalidRange] =
       TemplateArgUpdate{InvalidRange, Ctx.IntTy, Ctx.LongTy, SourceRange()};
 
+  const VarDecl *InvalidEndRange = MakeVar("tc_tpl_invalid_end");
+  TemplateUpdates[InvalidEndRange] = TemplateArgUpdate{
+      InvalidEndRange, Ctx.IntTy, Ctx.LongTy, SourceRange(FileLoc, SourceLocation())};
+
   const VarDecl *MacroRange = MakeVar("tc_tpl_macro");
   TemplateUpdates[MacroRange] = TemplateArgUpdate{
       MacroRange, Ctx.IntTy, Ctx.LongTy, SourceRange(MacroLoc, MacroLoc)};
+
+  const VarDecl *MacroEndRange = MakeVar("tc_tpl_macro_end");
+  TemplateUpdates[MacroEndRange] = TemplateArgUpdate{
+      MacroEndRange, Ctx.IntTy, Ctx.LongTy, SourceRange(FileLoc, MacroLoc)};
+
+  const VarDecl *ValidAudit = MakeVar("tc_tpl_valid_audit");
+  TemplateUpdates[ValidAudit] = TemplateArgUpdate{
+      ValidAudit, Ctx.IntTy, Ctx.LongTy, SourceRange(FileLoc, FileLoc)};
 
   ApplyTemplateUpdates(Rewriter, true, Changes, Ctx, DeclUpdates,
                        TemplateUpdates);
 }
 
 TYPE_CORRECT_EXPORT void CoverDeclUpdateMapEdges(ASTContext &Ctx,
-                                                 Rewriter &Rewriter) {
+                                                 Rewriter &Rewriter) noexcept {
   llvm::DenseMap<const NamedDecl *, DeclUpdate> DeclUpdates;
   std::vector<type_correct::ChangeRecord> Changes;
   SourceManager &SM = Rewriter.getSourceMgr();
   SourceLocation FileLoc = SM.getLocForStartOfFile(SM.getMainFileID());
+  SourceLocation MacroLoc = SM.createExpansionLoc(FileLoc, FileLoc, FileLoc, 1);
 
-  auto MakeVar = [&](const char *Name) {
+  auto MakeVar = [&](const char *Name) noexcept {
     IdentifierInfo &Id = Ctx.Idents.get(Name);
     return VarDecl::Create(Ctx, Ctx.getTranslationUnitDecl(), FileLoc, FileLoc,
                            &Id, Ctx.IntTy,
@@ -955,6 +946,14 @@ TYPE_CORRECT_EXPORT void CoverDeclUpdateMapEdges(ASTContext &Ctx,
   NullUpdate.DesiredType = Ctx.IntTy;
   NullUpdate.TypeRange = SourceRange(FileLoc, FileLoc);
   DeclUpdates[NullTypes] = NullUpdate;
+
+  const VarDecl *NullDesired = MakeVar("tc_decl_null_desired");
+  DeclUpdate NullDesiredUpdate;
+  NullDesiredUpdate.Decl = NullDesired;
+  NullDesiredUpdate.OriginalType = Ctx.IntTy;
+  NullDesiredUpdate.DesiredType = QualType();
+  NullDesiredUpdate.TypeRange = SourceRange(FileLoc, FileLoc);
+  DeclUpdates[NullDesired] = NullDesiredUpdate;
 
   const VarDecl *MacroA = MakeVar("tc_macro_a");
   DeclUpdate MacroUpdateA;
@@ -979,20 +978,35 @@ TYPE_CORRECT_EXPORT void CoverDeclUpdateMapEdges(ASTContext &Ctx,
   InvalidUpdate.TypeRange = SourceRange();
   DeclUpdates[InvalidRange] = InvalidUpdate;
 
+  const VarDecl *InvalidEnd = MakeVar("tc_decl_invalid_end");
+  DeclUpdate InvalidEndUpdate;
+  InvalidEndUpdate.Decl = InvalidEnd;
+  InvalidEndUpdate.OriginalType = Ctx.IntTy;
+  InvalidEndUpdate.DesiredType = Ctx.LongTy;
+  InvalidEndUpdate.TypeRange = SourceRange(FileLoc, SourceLocation());
+  DeclUpdates[InvalidEnd] = InvalidEndUpdate;
+
+  const VarDecl *MacroEnd = MakeVar("tc_decl_macro_end");
+  DeclUpdate MacroEndUpdate;
+  MacroEndUpdate.Decl = MacroEnd;
+  MacroEndUpdate.OriginalType = Ctx.IntTy;
+  MacroEndUpdate.DesiredType = Ctx.LongTy;
+  MacroEndUpdate.TypeRange = SourceRange(FileLoc, MacroLoc);
+  DeclUpdates[MacroEnd] = MacroEndUpdate;
+
   (void)CollectMacroUpdates(Rewriter, true, Changes, Ctx, DeclUpdates);
 }
 
 TYPE_CORRECT_EXPORT bool CoverMacroScannerEdges(ASTContext &Ctx,
-                                                Rewriter &Rewriter) {
+                                                Rewriter &Rewriter) noexcept {
   SourceManager &SM = Rewriter.getSourceMgr();
   FileID MainFile = SM.getMainFileID();
   auto EntryRef = SM.getFileEntryRefForID(MainFile);
-  if (!EntryRef)
-    return false; // LCOV_EXCL_LINE
 
   std::string NewText = TypeToString(Ctx.getSizeType(), Ctx);
   std::string Buffer;
   Buffer += "  #defineFOO 1\n";
+  Buffer += "#define\n";
   Buffer += "#define   \n";
   Buffer += "#define FUNC(x) int\n";
   Buffer += "#define OTHER int\n";
@@ -1016,7 +1030,7 @@ TYPE_CORRECT_EXPORT bool CoverMacroScannerEdges(ASTContext &Ctx,
 }
 
 TYPE_CORRECT_EXPORT void CoverRecordChangeEdges(ASTContext &Ctx,
-                                                Rewriter &Rewriter) {
+                                                Rewriter &Rewriter) noexcept {
   std::vector<type_correct::ChangeRecord> Changes;
   SourceManager &SM = Rewriter.getSourceMgr();
 

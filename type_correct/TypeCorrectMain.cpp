@@ -172,9 +172,10 @@ public:
    * @brief Constructor
    * @param P The execution phase.
    */
-  explicit TypeCorrectActionFactory(type_correct::Phase P) : ResolvedPhase(P) {}
+  explicit TypeCorrectActionFactory(type_correct::Phase P) noexcept
+      : ResolvedPhase(P) {}
 
-  std::unique_ptr<clang::FrontendAction> create() override {
+  std::unique_ptr<clang::FrontendAction> create() noexcept override {
     // Pass strictly strictly parsed options to the action.
     // Note: ForceRewrite is not exposed in this simplified factory as per current SDK header.
     return std::make_unique<TypeCorrectPluginAction>(
@@ -191,7 +192,7 @@ public:
  * @param Dir The directory containing .facts files.
  * @return true if the global state changed (requires re-running map).
  */
-bool RunReduce(const std::string &Dir) {
+bool RunReduce(const std::string &Dir) noexcept {
   if (Dir.empty()) {
     llvm::errs() << "Error: --facts-dir is required for reduce phase.\n";
     return false;
@@ -201,7 +202,7 @@ bool RunReduce(const std::string &Dir) {
   std::vector<type_correct::ctu::SymbolFact> AllFacts;
 
   // Gather all partial .facts files (excluding the global one loopback)
-  for (llvm::sys::fs::directory_iterator It(Dir, EC), End; It != End && !EC;
+  for (llvm::sys::fs::directory_iterator It(Dir, EC), End; It != End;
        It.increment(EC)) {
     std::string Path = It->path();
     if (llvm::sys::path::extension(Path) == ".facts" &&
@@ -237,7 +238,7 @@ bool RunReduce(const std::string &Dir) {
 //===----------------------------------------------------------------------===//
 // Main driver code.
 //===----------------------------------------------------------------------===//
-int main(int argc, const char **argv) {
+int main(int argc, const char **argv) noexcept {
   // Use the specific Category to hide unrelated LLVM options from --help
   llvm::Expected<clang::tooling::CommonOptionsParser> eOptParser =
       clang::tooling::CommonOptionsParser::create(argc, argv,
@@ -281,7 +282,7 @@ int main(int argc, const char **argv) {
     bool ConvergenceReached = false;
 
     // Fixed-Point Loop
-    while (Iteration < MaxIterationsOpt && !ConvergenceReached) {
+    while (Iteration < MaxIterationsOpt) {
       Iteration++;
       llvm::outs() << "=== Iteration " << Iteration << " ===\n";
 
@@ -300,6 +301,7 @@ int main(int argc, const char **argv) {
         llvm::outs() << "Convergence reached after " << Iteration
                      << " iterations.\n";
         ConvergenceReached = true;
+        break;
       } else {
         llvm::outs() << "Facts changed, continuing...\n";
       }

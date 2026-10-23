@@ -43,40 +43,48 @@ using namespace clang::tooling;
 using ::testing::HasSubstr;
 
 namespace type_correct::test_support {
-TYPE_CORRECT_EXPORT clang::TypeLoc GetBaseTypeLocForTest(clang::TypeLoc TL);
-TYPE_CORRECT_EXPORT clang::QualType NormalizeTypeForTest(clang::QualType T);
+TYPE_CORRECT_EXPORT clang::TypeLoc
+GetBaseTypeLocForTest(clang::TypeLoc TL) noexcept;
+TYPE_CORRECT_EXPORT clang::QualType
+NormalizeTypeForTest(clang::QualType T) noexcept;
 TYPE_CORRECT_EXPORT clang::QualType
 GetWiderTypeForTest(clang::QualType A, clang::QualType B,
-                    clang::ASTContext &Ctx);
-TYPE_CORRECT_EXPORT std::string TypeToStringForTest(clang::QualType T,
-                                                    clang::ASTContext &Ctx);
+                    clang::ASTContext &Ctx) noexcept;
+TYPE_CORRECT_EXPORT std::string
+TypeToStringForTest(clang::QualType T, clang::ASTContext &Ctx) noexcept;
 TYPE_CORRECT_EXPORT std::optional<const clang::NamedDecl *>
-ResolveNamedDeclForTest(const clang::Expr *E);
-TYPE_CORRECT_EXPORT bool IsIdentifierForTest(llvm::StringRef Text);
-TYPE_CORRECT_EXPORT void CoverVisitorEdgeCases(clang::ASTContext &Ctx);
+ResolveNamedDeclForTest(const clang::Expr *E) noexcept;
+TYPE_CORRECT_EXPORT bool IsIdentifierForTest(llvm::StringRef Text) noexcept;
+TYPE_CORRECT_EXPORT void CoverVisitorEdgeCases(clang::ASTContext &Ctx) noexcept;
 TYPE_CORRECT_EXPORT void CoverEnsureTemplateArgUpdateEdges(
     clang::ASTContext &Ctx, const clang::VarDecl *TemplateDecl,
     const clang::VarDecl *NonTemplateDecl,
     const clang::VarDecl *NonTypeTemplateDecl,
-    clang::VarDecl *TrivialTemplateDecl);
-TYPE_CORRECT_EXPORT void CoverTemplateUpdateMapEdges(
-    clang::ASTContext &Ctx, clang::Rewriter &Rewriter);
-TYPE_CORRECT_EXPORT void CoverDeclUpdateMapEdges(clang::ASTContext &Ctx,
-                                                 clang::Rewriter &Rewriter);
-TYPE_CORRECT_EXPORT bool CoverMacroScannerEdges(clang::ASTContext &Ctx,
-                                                clang::Rewriter &Rewriter);
-TYPE_CORRECT_EXPORT void CoverRecordChangeEdges(clang::ASTContext &Ctx,
-                                                clang::Rewriter &Rewriter);
+    clang::VarDecl *TrivialTemplateDecl) noexcept;
+TYPE_CORRECT_EXPORT void
+CoverTemplateUpdateMapEdges(clang::ASTContext &Ctx,
+                            clang::Rewriter &Rewriter) noexcept;
+TYPE_CORRECT_EXPORT void
+CoverDeclUpdateMapEdges(clang::ASTContext &Ctx,
+                        clang::Rewriter &Rewriter) noexcept;
+TYPE_CORRECT_EXPORT bool
+CoverMacroScannerEdges(clang::ASTContext &Ctx,
+                       clang::Rewriter &Rewriter) noexcept;
+TYPE_CORRECT_EXPORT void
+CoverRecordChangeEdges(clang::ASTContext &Ctx,
+                       clang::Rewriter &Rewriter) noexcept;
 } // namespace type_correct::test_support
 
 namespace {
 
 class LambdaASTConsumer : public clang::ASTConsumer {
 public:
-  explicit LambdaASTConsumer(std::function<void(clang::ASTContext &)> Fn)
+  explicit LambdaASTConsumer(std::function<void(clang::ASTContext &)> Fn) noexcept
       : Fn(std::move(Fn)) {}
 
-  void HandleTranslationUnit(clang::ASTContext &Ctx) override { Fn(Ctx); }
+  void HandleTranslationUnit(clang::ASTContext &Ctx) noexcept override {
+    Fn(Ctx);
+  }
 
 private:
   std::function<void(clang::ASTContext &)> Fn;
@@ -84,11 +92,11 @@ private:
 
 class LambdaFrontendAction : public clang::ASTFrontendAction {
 public:
-  explicit LambdaFrontendAction(std::function<void(clang::ASTContext &)> Fn)
+  explicit LambdaFrontendAction(std::function<void(clang::ASTContext &)> Fn) noexcept
       : Fn(std::move(Fn)) {}
 
   std::unique_ptr<clang::ASTConsumer>
-  CreateASTConsumer(clang::CompilerInstance &CI, llvm::StringRef) override {
+  CreateASTConsumer(clang::CompilerInstance &CI, llvm::StringRef) noexcept override {
     return std::make_unique<LambdaASTConsumer>(Fn);
   }
 
@@ -97,7 +105,7 @@ private:
 };
 
 bool RunWithAST(const std::string &Code,
-                std::function<void(clang::ASTContext &)> Fn) {
+                std::function<void(clang::ASTContext &)> Fn) noexcept {
   std::vector<std::string> Args = {"-std=c++17"};
   return clang::tooling::runToolOnCodeWithArgs(
       std::make_unique<LambdaFrontendAction>(std::move(Fn)), Code, Args,
@@ -120,69 +128,69 @@ struct FindVisitor : public clang::RecursiveASTVisitor<FindVisitor> {
   const MemberExpr *FoundMember = nullptr;
   const DeclRefExpr *FoundDeclRef = nullptr;
 
-  bool VisitVarDecl(VarDecl *VD) {
+  bool VisitVarDecl(VarDecl *VD) noexcept {
     if (!FoundVar && VD && VD->getName() == VarName)
       FoundVar = VD;
     return true;
   }
 
-  bool VisitFieldDecl(FieldDecl *FD) {
+  bool VisitFieldDecl(FieldDecl *FD) noexcept {
     if (!FoundField && FD && FD->getName() == FieldName)
       FoundField = FD;
     return true;
   }
 
-  bool VisitTypedefNameDecl(TypedefNameDecl *TD) {
+  bool VisitTypedefNameDecl(TypedefNameDecl *TD) noexcept {
     if (!FoundTypedef && TD && TD->getName() == TypedefName)
       FoundTypedef = TD;
     return true;
   }
 
-  bool VisitRecordDecl(RecordDecl *RD) {
+  bool VisitRecordDecl(RecordDecl *RD) noexcept {
     if (!FoundRecord && RD && RD->getName() == RecordName)
       FoundRecord = RD;
     return true;
   }
 
-  bool VisitForStmt(ForStmt *FS) {
+  bool VisitForStmt(ForStmt *FS) noexcept {
     if (!FoundFor)
       FoundFor = FS;
     return true;
   }
 
-  bool VisitExplicitCastExpr(ExplicitCastExpr *CE) {
+  bool VisitExplicitCastExpr(ExplicitCastExpr *CE) noexcept {
     if (!FoundCast)
       FoundCast = CE;
     return true;
   }
 
-  bool VisitCallExpr(CallExpr *CE) {
+  bool VisitCallExpr(CallExpr *CE) noexcept {
     if (!FoundCall)
       FoundCall = CE;
     return true;
   }
 
-  bool VisitMemberExpr(MemberExpr *ME) {
+  bool VisitMemberExpr(MemberExpr *ME) noexcept {
     if (!FoundMember)
       FoundMember = ME;
     return true;
   }
 
-  bool VisitDeclRefExpr(DeclRefExpr *DRE) {
+  bool VisitDeclRefExpr(DeclRefExpr *DRE) noexcept {
     if (!FoundDeclRef)
       FoundDeclRef = DRE;
     return true;
   }
 };
 
-const VarDecl *FindVarDecl(ASTContext &Ctx, const std::string &Name) {
+const VarDecl *FindVarDecl(ASTContext &Ctx, const std::string &Name) noexcept {
   FindVisitor Visitor;
   Visitor.VarName = Name;
   Visitor.TraverseDecl(Ctx.getTranslationUnitDecl());
   return Visitor.FoundVar;
 }
 
-const FieldDecl *FindFieldDecl(ASTContext &Ctx, const std::string &Name) {
+const FieldDecl *FindFieldDecl(ASTContext &Ctx, const std::string &Name) noexcept {
   FindVisitor Visitor;
   Visitor.FieldName = Name;
   Visitor.TraverseDecl(Ctx.getTranslationUnitDecl());
@@ -190,51 +198,51 @@ const FieldDecl *FindFieldDecl(ASTContext &Ctx, const std::string &Name) {
 }
 
 const TypedefNameDecl *FindTypedefDecl(ASTContext &Ctx,
-                                       const std::string &Name) {
+                                       const std::string &Name) noexcept {
   FindVisitor Visitor;
   Visitor.TypedefName = Name;
   Visitor.TraverseDecl(Ctx.getTranslationUnitDecl());
   return Visitor.FoundTypedef;
 }
 
-const RecordDecl *FindRecordDecl(ASTContext &Ctx, const std::string &Name) {
+const RecordDecl *FindRecordDecl(ASTContext &Ctx, const std::string &Name) noexcept {
   FindVisitor Visitor;
   Visitor.RecordName = Name;
   Visitor.TraverseDecl(Ctx.getTranslationUnitDecl());
   return Visitor.FoundRecord;
 }
 
-const ForStmt *FindFirstFor(ASTContext &Ctx) {
+const ForStmt *FindFirstFor(ASTContext &Ctx) noexcept {
   FindVisitor Visitor;
   Visitor.TraverseDecl(Ctx.getTranslationUnitDecl());
   return Visitor.FoundFor;
 }
 
-const ExplicitCastExpr *FindFirstExplicitCast(ASTContext &Ctx) {
+const ExplicitCastExpr *FindFirstExplicitCast(ASTContext &Ctx) noexcept {
   FindVisitor Visitor;
   Visitor.TraverseDecl(Ctx.getTranslationUnitDecl());
   return Visitor.FoundCast;
 }
 
-const CallExpr *FindFirstCall(ASTContext &Ctx) {
+const CallExpr *FindFirstCall(ASTContext &Ctx) noexcept {
   FindVisitor Visitor;
   Visitor.TraverseDecl(Ctx.getTranslationUnitDecl());
   return Visitor.FoundCall;
 }
 
-const MemberExpr *FindFirstMemberExpr(ASTContext &Ctx) {
+const MemberExpr *FindFirstMemberExpr(ASTContext &Ctx) noexcept {
   FindVisitor Visitor;
   Visitor.TraverseDecl(Ctx.getTranslationUnitDecl());
   return Visitor.FoundMember;
 }
 
-const DeclRefExpr *FindFirstDeclRef(ASTContext &Ctx) {
+const DeclRefExpr *FindFirstDeclRef(ASTContext &Ctx) noexcept {
   FindVisitor Visitor;
   Visitor.TraverseDecl(Ctx.getTranslationUnitDecl());
   return Visitor.FoundDeclRef;
 }
 
-int RunCommand(const std::string &Command) {
+int RunCommand(const std::string &Command) noexcept {
   int Result = std::system(Command.c_str());
 #ifdef _WIN32
   return Result;
@@ -247,7 +255,7 @@ int RunCommand(const std::string &Command) {
 #endif
 }
 
-std::string MakeTempDir(const std::string &Prefix) {
+std::string MakeTempDir(const std::string &Prefix) noexcept {
   llvm::SmallString<128> TempDir;
   std::error_code EC =
       llvm::sys::fs::createUniqueDirectory(Prefix, TempDir);
@@ -306,12 +314,16 @@ GTEST_TEST(Coverage, TypeSolverPaths) {
     Solver.AddGlobalConstraint(A, Ctx.getSizeType(), &Ctx);
 
     Solver.AddPointerOffsetUsage(nullptr);
+    Solver.AddPointerOffsetUsage(I);
     Solver.AddPointerOffsetUsage(A);
 
     Solver.AddEdge(nullptr, nullptr);
+    Solver.AddEdge(A, nullptr);
     Solver.AddEdge(A, A);
-    Solver.AddEdge(N, B);
+    Solver.AddEdge(I, B);
+    Solver.AddEdge(A, I);
     Solver.AddEdge(A, B);
+    Solver.AddEdge(C, B);
 
     Solver.AddLoopComparisonConstraint(nullptr, nullptr, &Ctx);
 
@@ -349,7 +361,11 @@ GTEST_TEST(Coverage, TypeSolverPaths) {
     Solver.AddRangeConstraint(B, Negative);
 
     Solver.AddSymbolicConstraint(nullptr, type_correct::OpKind::Add, A, B);
+    Solver.AddSymbolicConstraint(C, type_correct::OpKind::Add, nullptr, B);
+    Solver.AddSymbolicConstraint(C, type_correct::OpKind::Add, A, nullptr);
     Solver.AddSymbolicConstraint(C, type_correct::OpKind::Add, A, B);
+    Solver.AddSymbolicConstraint(C, type_correct::OpKind::Add, B, A);
+    Solver.AddSymbolicConstraint(C, type_correct::OpKind::Add, B, C);
 
     auto Updates = Solver.Solve(&Ctx);
     EXPECT_FALSE(Updates.empty());
@@ -357,16 +373,23 @@ GTEST_TEST(Coverage, TypeSolverPaths) {
     EXPECT_FALSE(Solver.GetResolvedType(nullptr).has_value());
     EXPECT_TRUE(Solver.GetResolvedType(A).has_value());
 
-    QualType IncompleteTy = Ctx.getCanonicalTagType(Incomplete);
-    QualType CompleteTy = Ctx.getCanonicalTagType(Complete);
+    QualType IncompleteTy =
+        type_correct::clang_compat::GetRecordType(Ctx, Incomplete);
+    QualType CompleteTy =
+        type_correct::clang_compat::GetRecordType(Ctx, Complete);
     EXPECT_FALSE(Solver.GetWider(QualType(), Ctx.IntTy, &Ctx).isNull());
     Solver.GetWider(Ctx.IntTy, QualType(), &Ctx);
     Solver.GetWider(Ctx.IntTy, Ctx.IntTy, &Ctx);
     Solver.GetWider(IncompleteTy, CompleteTy, &Ctx);
+    Solver.GetWider(Ctx.IntTy, IncompleteTy, &Ctx);
     Solver.GetWider(CompleteTy, Ctx.getPointerDiffType(), &Ctx);
+    Solver.GetWider(Ctx.IntTy, CompleteTy, &Ctx);
     Solver.GetWider(Ctx.IntTy, Ctx.LongLongTy, &Ctx);
     Solver.GetWider(Ctx.LongLongTy, Ctx.IntTy, &Ctx);
     Solver.GetWider(Ctx.IntTy, Ctx.UnsignedIntTy, &Ctx);
+    Solver.GetWider(Ctx.UnsignedIntTy, Ctx.UnsignedLongTy, &Ctx);
+    Solver.GetWider(Ctx.UnsignedIntTy, Ctx.FloatTy, &Ctx);
+    Solver.GetWider(Ctx.FloatTy, Ctx.UnsignedIntTy, &Ctx);
   }));
 }
 
@@ -440,8 +463,12 @@ GTEST_TEST(Coverage, TypeSolverExtraPaths) {
     EXPECT_FALSE(Solver.GetResolvedType(DummyNS).has_value());
 
     type_correct::ValueRange EmptyRange;
+    type_correct::ValueRange OnlyNegMin;
+    OnlyNegMin.Min = -5;
     Solver.GetOptimalTypeForRange(EmptyRange, Ctx.IntTy, &Ctx);
     Solver.GetOptimalTypeForRange(OnlyMin, Ctx.IntTy, &Ctx);
+    Solver.GetOptimalTypeForRange(OnlyMax, Ctx.IntTy, &Ctx);
+    Solver.GetOptimalTypeForRange(OnlyNegMin, Ctx.IntTy, &Ctx);
     Solver.GetOptimalTypeForRange(type_correct::ValueRange(0, 50000), Ctx.IntTy, &Ctx);
     Solver.GetOptimalTypeForRange(type_correct::ValueRange(0, 0), Ctx.LongLongTy, &Ctx);
     Solver.GetOptimalTypeForRange(type_correct::ValueRange(-9000000000000000000LL, 0), Ctx.IntTy, &Ctx);
@@ -590,12 +617,17 @@ GTEST_TEST(Coverage, StructAnalyzerPaths) {
               BoundaryStatus::Fixed);
 
     std::string ProjectDir = TempDir + "/project";
-    llvm::sys::fs::create_directories(ProjectDir);
+    std::string SubProjectDir = ProjectDir + "/sub/nested";
+    llvm::sys::fs::create_directories(SubProjectDir);
     {
       std::ofstream Out(ProjectDir + "/CMakeLists.txt");
       Out << "project(Coverage)\n";
     }
-    std::string ProjectFile = ProjectDir + "/file.h";
+    {
+      std::ofstream Out(ProjectDir + "/sub/CMakeLists.txt");
+      Out << "add_library(sub STATIC sub.cpp)\n";
+    }
+    std::string ProjectFile = SubProjectDir + "/file.h";
     {
       std::ofstream Out(ProjectFile);
       Out << "int p;\n";
@@ -616,6 +648,12 @@ GTEST_TEST(Coverage, StructAnalyzerPaths) {
         SM.createFileID(*ProjectRef, IncludeLoc, SrcMgr::C_User);
     EXPECT_EQ(AllowAbi.CheckFileBoundary(IncludedID, SM),
               BoundaryStatus::Fixed);
+
+    SourceLocation ModIncludeLoc = SM.getLocForStartOfFile(SM.getMainFileID());
+    FileID ModIncludedID =
+        SM.createFileID(*ProjectRef, ModIncludeLoc, SrcMgr::C_User);
+    EXPECT_EQ(AllowAbi.CheckFileBoundary(ModIncludedID, SM),
+              BoundaryStatus::Modifiable);
 
     EXPECT_TRUE(AllowAbi.IsExternalPath("/usr/include/stdio.h"));
     EXPECT_TRUE(AllowAbi.IsExternalPath("/opt/vendor/lib.h"));
@@ -701,13 +739,21 @@ GTEST_TEST(Coverage, FactManagerPaths) {
 
   std::vector<SymbolFact> RawFacts = {
       SymbolFact("X", "unsigned char", false),
+      SymbolFact("X", "char", false),
       SymbolFact("X", "short", false),
-      SymbolFact("Y", "int", false),
-      SymbolFact("Z", "long", false),
-      SymbolFact("W", "size_t", false),
-      SymbolFact("V", "long long", false),
-      SymbolFact("U", "ptrdiff_t", false),
-      SymbolFact("U", "unknown", false),
+      SymbolFact("X", "unsigned short", false),
+      SymbolFact("X", "int", false),
+      SymbolFact("X", "unsigned int", false),
+      SymbolFact("X", "unsigned", false),
+      SymbolFact("X", "long", false),
+      SymbolFact("X", "unsigned long", false),
+      SymbolFact("X", "size_t", false),
+      SymbolFact("X", "std::size_t", false),
+      SymbolFact("X", "ptrdiff_t", false),
+      SymbolFact("X", "std::ptrdiff_t", false),
+      SymbolFact("X", "long long", false),
+      SymbolFact("X", "unsigned long long", false),
+      SymbolFact("X", "unknown", false),
       SymbolFact("T", "unsigned", false, true),
       SymbolFact("R", "unsigned", false),
       SymbolFact("R", "long", false),
@@ -717,7 +763,7 @@ GTEST_TEST(Coverage, FactManagerPaths) {
       SymbolFact("TD", "long", false, true),
   };
   auto Merged = FactManager::MergeFacts(RawFacts);
-  EXPECT_EQ(Merged["X"].TypeName, "short");
+  EXPECT_EQ(Merged["X"].TypeName, "long long");
   EXPECT_TRUE(Merged["T"].IsTypedef);
 
   SymbolFact Base("ID", "int", false, false);
@@ -753,6 +799,15 @@ GTEST_TEST(Coverage, TypeCorrectExtraPaths) {
       "#define CAST_INT(v) ((int)(v))\n"
       "typedef unsigned long size_t;"
       "size_t get_size();"
+      "template <typename T> struct Box {"
+      "  void push_back() {}"
+      "  void push_back(T) {}"
+      "  void emplace_back(T) {}"
+      "  void clear() {}"
+      "};"
+      "Box<int> make_box();"
+      "struct Holder { Box<int> member_box; };"
+      "struct NonTpl { void push_back(int) {} };"
       "int main() {"
       "  TYPE_OF(1) y;"
       "  y = get_size();"
@@ -760,6 +815,17 @@ GTEST_TEST(Coverage, TypeCorrectExtraPaths) {
       "  auto z = get_size();"
       "  int w = (int)1;"
       "  int q = CAST_INT(2);"
+      "  int *p = &w;"
+      "  *p = 3;"
+      "  Box<int> b;"
+      "  b.clear();"
+      "  b.push_back();"
+      "  b.emplace_back(1);"
+      "  make_box().push_back(1);"
+      "  Holder h;"
+      "  h.member_box.push_back(1);"
+      "  NonTpl nt;"
+      "  nt.push_back(1);"
       "  (void)z; (void)w; (void)q;"
       "}";
 
@@ -767,7 +833,8 @@ GTEST_TEST(Coverage, TypeCorrectExtraPaths) {
   class TestTypeCorrectAction : public clang::ASTFrontendAction {
   public:
     std::unique_ptr<clang::ASTConsumer>
-    CreateASTConsumer(clang::CompilerInstance &CI, llvm::StringRef) override {
+    CreateASTConsumer(clang::CompilerInstance &CI,
+                      llvm::StringRef) noexcept override {
       Rewriter.setSourceMgr(CI.getSourceManager(), CI.getLangOpts());
       return std::make_unique<TypeCorrectASTConsumer>(
           Rewriter, false, false, "", "", false, false, false,
@@ -814,6 +881,10 @@ GTEST_TEST(Coverage, CliPaths) {
   EXPECT_EQ(RunCommand(CmdBase + " --phase=reduce"), 0);
 
   std::string FactsDir = MakeTempDir("type_correct_facts_cli");
+  {
+    std::ofstream Out(FactsDir + "/ignore.txt");
+    Out << "ignored\n";
+  }
   std::string FactsFile = FactsDir + "/chunk.facts";
   {
     std::ofstream Out(FactsFile);
@@ -982,20 +1053,26 @@ GTEST_TEST(Coverage, TypeCorrectHelperFunctions) {
     const RecordDecl *FooRec = FindRecordDecl(Ctx, "Foo");
     ASSERT_NE(Fwd, nullptr);
     ASSERT_NE(FooRec, nullptr);
-    QualType IncompleteTy = Ctx.getCanonicalTagType(Fwd);
-    QualType CompleteTy = Ctx.getCanonicalTagType(FooRec);
+    QualType IncompleteTy = type_correct::clang_compat::GetRecordType(Ctx, Fwd);
+    QualType CompleteTy =
+        type_correct::clang_compat::GetRecordType(Ctx, FooRec);
 
     type_correct::test_support::GetWiderTypeForTest(QualType(), Ctx.IntTy, Ctx);
     type_correct::test_support::GetWiderTypeForTest(Ctx.IntTy, QualType(), Ctx);
     type_correct::test_support::GetWiderTypeForTest(IncompleteTy, Ctx.IntTy,
                                                     Ctx);
+    type_correct::test_support::GetWiderTypeForTest(Ctx.IntTy, IncompleteTy,
+                                                    Ctx);
     type_correct::test_support::GetWiderTypeForTest(CompleteTy, Ctx.IntTy, Ctx);
+    type_correct::test_support::GetWiderTypeForTest(Ctx.IntTy, CompleteTy, Ctx);
     type_correct::test_support::GetWiderTypeForTest(Ctx.LongLongTy, Ctx.IntTy,
                                                     Ctx);
     type_correct::test_support::GetWiderTypeForTest(Ctx.IntTy,
                                                     Ctx.UnsignedIntTy, Ctx);
     type_correct::test_support::GetWiderTypeForTest(Ctx.UnsignedIntTy,
                                                     Ctx.IntTy, Ctx);
+    type_correct::test_support::GetWiderTypeForTest(Ctx.FloatTy,
+                                                    Ctx.UnsignedIntTy, Ctx);
 
     const MemberExpr *Member = FindFirstMemberExpr(Ctx);
     const DeclRefExpr *DeclRef = FindFirstDeclRef(Ctx);
@@ -1010,6 +1087,7 @@ GTEST_TEST(Coverage, TypeCorrectHelperFunctions) {
     EXPECT_FALSE(type_correct::test_support::IsIdentifierForTest(""));
     EXPECT_FALSE(type_correct::test_support::IsIdentifierForTest("1bad"));
     EXPECT_FALSE(type_correct::test_support::IsIdentifierForTest("bad!"));
+    EXPECT_TRUE(type_correct::test_support::IsIdentifierForTest("_good"));
     EXPECT_TRUE(type_correct::test_support::IsIdentifierForTest("good_name"));
 
     clang::Rewriter Rewriter;
@@ -1132,6 +1210,15 @@ GTEST_TEST(Coverage, TypeCorrectRedundantCastEdges) {
                  Ctx.getTrivialTypeSourceInfo(Ctx.IntTy));
     Matcher.ExplicitCasts.push_back(CastSubInvalid);
 
+    auto *BinSubEndInvalid = BinaryOperator::Create(
+        Ctx, LiteralMain, LiteralSubInvalid, BO_Add, Ctx.IntTy,
+        type_correct::clang_compat::PrValueKind(), OK_Ordinary, MainLoc,
+        clang::FPOptionsOverride());
+    auto *CastSubEndInvalid =
+        MakeCast(BinSubEndInvalid, MainLoc, MainLoc,
+                 Ctx.getTrivialTypeSourceInfo(Ctx.IntTy));
+    Matcher.ExplicitCasts.push_back(CastSubEndInvalid);
+
     auto *LiteralSubMacro =
         IntegerLiteral::Create(Ctx, llvm::APInt(32, 5), Ctx.IntTy, MacroLoc);
     auto *CastSubMacro =
@@ -1139,8 +1226,17 @@ GTEST_TEST(Coverage, TypeCorrectRedundantCastEdges) {
                  Ctx.getTrivialTypeSourceInfo(Ctx.IntTy));
     Matcher.ExplicitCasts.push_back(CastSubMacro);
 
+    auto *BinSubEndMacro = BinaryOperator::Create(
+        Ctx, LiteralMain, LiteralSubMacro, BO_Add, Ctx.IntTy,
+        type_correct::clang_compat::PrValueKind(), OK_Ordinary, MainLoc,
+        clang::FPOptionsOverride());
+    auto *CastSubEndMacro =
+        MakeCast(BinSubEndMacro, MainLoc, MainLoc,
+                 Ctx.getTrivialTypeSourceInfo(Ctx.IntTy));
+    Matcher.ExplicitCasts.push_back(CastSubEndMacro);
+
     auto *Opaque = new (Ctx)
-        OpaqueValueExpr(SourceLocation(), Ctx.IntTy,
+        OpaqueValueExpr(MainLoc, Ctx.IntTy,
                         type_correct::clang_compat::PrValueKind());
     auto *CastNullType =
         MakeCast(Opaque, MainLoc, MainLoc,
@@ -1160,6 +1256,12 @@ GTEST_TEST(Coverage, TypeCorrectRedundantCastEdges) {
     Matcher.ExplicitCasts.push_back(CastEmptyText);
 
     Matcher.ProcessRedundantCasts(Ctx);
+
+    TypeCorrectMatcher AuditMatcher(
+        Rewriter, false, false, "", "", false, false, true,
+        type_correct::Phase::Standalone, "", "");
+    AuditMatcher.ExplicitCasts.push_back(CastDuplicate);
+    AuditMatcher.ProcessRedundantCasts(Ctx);
   }));
 }
 

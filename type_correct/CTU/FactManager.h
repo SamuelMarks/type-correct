@@ -60,7 +60,7 @@ struct SymbolFact {
   /**
    * @brief Default constructor initializing fields to safe defaults.
    */
-  SymbolFact() : IsField(false), IsTypedef(false) {}
+  SymbolFact() noexcept : IsField(false), IsTypedef(false) {}
 
   /**
    * @brief Parameterized constructor for easy instantiation.
@@ -70,7 +70,7 @@ struct SymbolFact {
    * @param F IsField flag.
    * @param TD IsTypedef flag.
    */
-  SymbolFact(std::string U, std::string T, bool F, bool TD = false)
+  SymbolFact(std::string U, std::string T, bool F, bool TD = false) noexcept
       : USR(std::move(U)), TypeName(std::move(T)), IsField(F), IsTypedef(TD) {}
 
   /**
@@ -79,7 +79,7 @@ struct SymbolFact {
    * @param Other The other fact to compare against.
    * @return true if USR, TypeName, IsField, and IsTypedef are identical.
    */
-  bool operator==(const SymbolFact &Other) const {
+  bool operator==(const SymbolFact &Other) const noexcept {
     return USR == Other.USR && TypeName == Other.TypeName &&
            IsField == Other.IsField && IsTypedef == Other.IsTypedef;
   }
@@ -90,7 +90,9 @@ struct SymbolFact {
    * @param Other The other fact.
    * @return true if any field differs.
    */
-  bool operator!=(const SymbolFact &Other) const { return !(*this == Other); }
+  bool operator!=(const SymbolFact &Other) const noexcept {
+    return !(*this == Other);
+  }
 };
 
 /**
@@ -114,7 +116,7 @@ public:
    *
    * @param FilePath The output filesystem path.
    * @param Facts The map of USR -> SymbolFact to write.
-   * @return true on successful write, false otherwise.
+   * @return std::expected<void, std::string> Empty expected on success, or error message.
    */
   static std::expected<void, std::string>
   WriteFacts(const std::string &FilePath,
@@ -125,7 +127,7 @@ public:
    *
    * @param FilePath The input filesystem path.
    * @param OutFacts Vector to populate with deserialized facts.
-   * @return true on successful read, false if file missing or unreadable.
+   * @return std::expected<void, std::string> Empty expected on success, or error message if missing/unreadable.
    */
   static std::expected<void, std::string>
   ReadFacts(const std::string &FilePath,

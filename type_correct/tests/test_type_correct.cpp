@@ -39,7 +39,7 @@ public:
                                  bool ExpandAuto = false, 
                                  std::string Exclude = "", 
                                  bool InPlace = false, 
-                                 bool EnableAbi = false) 
+                                 bool EnableAbi = false) noexcept
       : UseDecltype(UseDecltype), ExpandAuto(ExpandAuto), 
         Exclude(Exclude), InPlace(InPlace), EnableAbi(EnableAbi) {} 
 
@@ -50,7 +50,7 @@ public:
    * @param Param Unused file param. 
    * @return std::unique_ptr<clang::ASTConsumer> The TypeCorrect consumer. 
    */ 
-  std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(clang::CompilerInstance &CI, llvm::StringRef) override { 
+  std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(clang::CompilerInstance &CI, llvm::StringRef) noexcept override { 
     Rewriter.setSourceMgr(CI.getSourceManager(), CI.getLangOpts()); 
     // Inject test parameters into Consumer with arguments for Audit/Report set to defaults
     return std::make_unique<TypeCorrectASTConsumer>( 
@@ -87,7 +87,7 @@ private:
  * @param EnableAbi Enable struct field rewriting. 
  * @return std::string The rewritten source code intercepted from stdout. 
  */ 
-static std::string runToolOnString(llvm::StringRef Code, bool UseDecltype = false, bool ExpandAuto = false, std::string Exclude = "", bool InPlace = false, bool EnableAbi = false) { 
+static std::string runToolOnString(llvm::StringRef Code, bool UseDecltype = false, bool ExpandAuto = false, std::string Exclude = "", bool InPlace = false, bool EnableAbi = false) noexcept { 
     testing::internal::CaptureStdout(); 
     runToolOnCode(std::make_unique<TestTypeCorrectAction>(UseDecltype, ExpandAuto, Exclude, InPlace, EnableAbi), Code); 
     return testing::internal::GetCapturedStdout(); 

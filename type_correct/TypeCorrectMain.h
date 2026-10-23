@@ -46,7 +46,7 @@ public:
       bool InPlace = false, bool EnableAbiBreakingChanges = false,
       bool AuditMode = false,
       type_correct::Phase CurrentPhase = type_correct::Phase::Standalone,
-      std::string FactsOutputDir = "", std::string ReportFile = "")
+      std::string FactsOutputDir = "", std::string ReportFile = "") noexcept
       : ProjectRoot(std::move(ProjectRoot)),
         ExcludePattern(std::move(ExcludePattern)), InPlace(InPlace),
         EnableAbiBreakingChanges(EnableAbiBreakingChanges),
@@ -61,7 +61,7 @@ public:
    * @return true if arguments are accepted.
    */
   bool ParseArgs(const clang::CompilerInstance &CI,
-                 const std::vector<std::string> &args) override {
+                 const std::vector<std::string> &args) noexcept override {
     return true;
   }
 
@@ -73,7 +73,7 @@ public:
    */
   std::unique_ptr<clang::ASTConsumer>
   CreateASTConsumer(clang::CompilerInstance &CI,
-                    llvm::StringRef file) override {
+                    llvm::StringRef file) noexcept override {
     RewriterForTypeCorrect.setSourceMgr(CI.getSourceManager(),
                                         CI.getLangOpts());
 

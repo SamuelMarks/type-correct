@@ -1,3 +1,8 @@
+/**
+ * @file TypeCorrectCAPI.cpp
+ * @brief Implementation of the Foreign Function Interface (FFI) for type-correct.
+ */
+
 #include "TypeCorrectCAPI.h"
 #include "TypeCorrectMain.h"
 
@@ -9,48 +14,57 @@
 
 namespace {
 class CAPIActionFactory : public clang::tooling::FrontendActionFactory {
-    bool AuditMode;
-    bool InPlace;
-public:
-    CAPIActionFactory(bool AuditMode, bool InPlace) 
-        : AuditMode(AuditMode), InPlace(InPlace) {}
+  bool AuditMode;
+  bool InPlace;
 
-    std::unique_ptr<clang::FrontendAction> create() override {
-        return std::make_unique<TypeCorrectPluginAction>(
-            "", "", InPlace, false, AuditMode, 
-            type_correct::Phase::Standalone, "", "");
-    }
+public:
+  CAPIActionFactory(bool AuditMode, bool InPlace) noexcept
+      : AuditMode(AuditMode), InPlace(InPlace) {}
+
+  std::unique_ptr<clang::FrontendAction> create() noexcept override {
+    return std::make_unique<TypeCorrectPluginAction>(
+        "", "", InPlace, false, AuditMode, type_correct::Phase::Standalone, "",
+        "");
+  }
 };
 } // namespace
 
-extern "C" TYPE_CORRECT_EXPORT int type_correct_audit(const char* target_path) noexcept {
-    if (!target_path) return -1;
+extern "C" TYPE_CORRECT_EXPORT int
+type_correct_audit(const char *target_path) noexcept {
+  if (!target_path)
+    return -1;
 
-    std::vector<std::string> CommandLine;
-    auto Compilations = std::make_unique<clang::tooling::FixedCompilationDatabase>(".", CommandLine);
+  std::vector<std::string> CommandLine;
+  auto Compilations =
+      std::make_unique<clang::tooling::FixedCompilationDatabase>(".",
+                                                                 CommandLine);
 
-    std::vector<std::string> SourcePaths = { target_path };
-    clang::tooling::RefactoringTool Tool(*Compilations, SourcePaths);
+  std::vector<std::string> SourcePaths = {target_path};
+  clang::tooling::RefactoringTool Tool(*Compilations, SourcePaths);
 
-    CAPIActionFactory Factory(true /* AuditMode */, false /* InPlace */);
-    return Tool.run(&Factory);
+  CAPIActionFactory Factory(true /* AuditMode */, false /* InPlace */);
+  return Tool.run(&Factory);
 }
 
-extern "C" TYPE_CORRECT_EXPORT int type_correct_fix(const char* target_path, bool dry_run) noexcept {
-    if (!target_path) return -1;
+extern "C" TYPE_CORRECT_EXPORT int type_correct_fix(const char *target_path,
+                                                    bool dry_run) noexcept {
+  if (!target_path)
+    return -1;
 
-    std::vector<std::string> CommandLine;
-    auto Compilations = std::make_unique<clang::tooling::FixedCompilationDatabase>(".", CommandLine);
+  std::vector<std::string> CommandLine;
+  auto Compilations =
+      std::make_unique<clang::tooling::FixedCompilationDatabase>(".",
+                                                                 CommandLine);
 
-    std::vector<std::string> SourcePaths = { target_path };
-    clang::tooling::RefactoringTool Tool(*Compilations, SourcePaths);
+  std::vector<std::string> SourcePaths = {target_path};
+  clang::tooling::RefactoringTool Tool(*Compilations, SourcePaths);
 
-    bool InPlace = !dry_run;
-    CAPIActionFactory Factory(false /* AuditMode */, InPlace);
+  bool InPlace = !dry_run;
+  CAPIActionFactory Factory(false /* AuditMode */, InPlace);
 
-    if (dry_run) {
-        return Tool.run(&Factory);
-    } else {
-        return Tool.runAndSave(&Factory);
-    }
+  if (dry_run) {
+    return Tool.run(&Factory);
+  } else {
+    return Tool.runAndSave(&Factory);
+  }
 }

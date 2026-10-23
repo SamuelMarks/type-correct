@@ -58,6 +58,10 @@ struct AssignmentSite {
   const clang::Expr *SourceExpr;  ///< Source expression of the assignment.
 };
 
+/**
+ * @class TypeCorrectMatcher
+ * @brief AST matcher callback that collects type constraints and applies rewrites.
+ */
 class TYPE_CORRECT_EXPORT TypeCorrectMatcher
     : public clang::ast_matchers::MatchFinder::MatchCallback {
 public:
@@ -82,7 +86,7 @@ public:
       std::string ExcludePattern = "", bool InPlace = false,
       bool EnableAbiBreakingChanges = false, bool AuditMode = false,
       type_correct::Phase CurrentPhase = type_correct::Phase::Standalone,
-      std::string FactsOutputDir = "", std::string ReportFile = "");
+      std::string FactsOutputDir = "", std::string ReportFile = "") noexcept;
 
   /**
    * @brief Destructor.
@@ -93,20 +97,20 @@ public:
    * @brief Handle a match result from the AST matcher.
    * @param Result Matched AST nodes.
    */
-  void
-  run(const clang::ast_matchers::MatchFinder::MatchResult &Result) override;
+  void run(const clang::ast_matchers::MatchFinder::MatchResult &Result)
+      noexcept override;
 
   /**
    * @brief Finalize processing after the translation unit is parsed.
    * @param Ctx AST context.
    */
-  void onEndOfTranslationUnit(clang::ASTContext &Ctx);
+  void onEndOfTranslationUnit(clang::ASTContext &Ctx) noexcept;
 
   /**
    * @brief Retrieve the list of recorded changes.
    * @return Vector of changes.
    */
-  std::vector<type_correct::ChangeRecord> GetChanges() const;
+  std::vector<type_correct::ChangeRecord> GetChanges() const noexcept;
 
 private:
   clang::Rewriter &Rewriter;
@@ -130,21 +134,26 @@ private:
   std::vector<const clang::ExplicitCastExpr *> ExplicitCasts;
   std::vector<AssignmentSite> Assignments;
 
-  void EnsureGlobalFactsLoaded();
-  void ApplyGlobalFactIfExists(const clang::NamedDecl *, clang::ASTContext *);
+  void EnsureGlobalFactsLoaded() noexcept;
+  void ApplyGlobalFactIfExists(const clang::NamedDecl *,
+                               clang::ASTContext *) noexcept;
   void RegisterTypedefDependency(const clang::NamedDecl *, clang::QualType,
-                                 clang::ASTContext *);
+                                 clang::ASTContext *) noexcept;
 
   void AddConstraint(const clang::NamedDecl *, clang::QualType,
-                     const clang::Expr *, clang::ASTContext *);
+                     const clang::Expr *, clang::ASTContext *) noexcept;
 
   void AddUsageEdge(const clang::NamedDecl *, const clang::NamedDecl *,
-                    clang::ASTContext *);
+                    clang::ASTContext *) noexcept;
 
-  void ProcessRedundantCasts(clang::ASTContext &Ctx);
-  void ProcessNarrowingSafety(clang::ASTContext &Ctx);
+  void ProcessRedundantCasts(clang::ASTContext &Ctx) noexcept;
+  void ProcessNarrowingSafety(clang::ASTContext &Ctx) noexcept;
 };
 
+/**
+ * @class TypeCorrectASTConsumer
+ * @brief Clang ASTConsumer that dispatches AST matching and end-of-TU rewriting.
+ */
 class TYPE_CORRECT_EXPORT TypeCorrectASTConsumer : public clang::ASTConsumer {
 public:
   /**
@@ -167,13 +176,13 @@ public:
       const std::string &ProjectRoot, const std::string &ExcludePattern,
       bool InPlace, bool EnableAbiBreakingChanges, bool AuditMode,
       type_correct::Phase CurrentPhase, const std::string &FactsOutputDir,
-      const std::string &ReportFile);
+      const std::string &ReportFile) noexcept;
 
   /**
    * @brief Entry point for AST traversal on a translation unit.
    * @param Ctx AST context.
    */
-  void HandleTranslationUnit(clang::ASTContext &Ctx) override;
+  void HandleTranslationUnit(clang::ASTContext &Ctx) noexcept override;
 
 private:
   clang::ast_matchers::MatchFinder Finder;

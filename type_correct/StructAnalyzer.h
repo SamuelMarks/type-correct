@@ -65,7 +65,7 @@ public:
    * checking.
    */
   explicit StructAnalyzer(bool AllowABIChanges, bool ForceRewrite = false,
-                          std::string ProjectRoot = "");
+                          std::string ProjectRoot = "") noexcept;
 
   /**
    * @brief Determines if a specific field declaration can be safely rewritten.
@@ -75,7 +75,8 @@ public:
    * @param SM The SourceManager (for boundary check).
    * @return true If rewriting is permitted.
    */
-  bool CanRewriteField(const clang::FieldDecl *Field, clang::SourceManager &SM);
+  bool CanRewriteField(const clang::FieldDecl *Field,
+                       clang::SourceManager &SM) noexcept;
 
   /**
    * @brief Determines if a Typedef declaration can be safely rewritten.
@@ -88,7 +89,7 @@ public:
    * @return true if the typedef is user-code and safe to update.
    */
   bool CanRewriteTypedef(const clang::TypedefNameDecl *TD,
-                         clang::SourceManager &SM);
+                         clang::SourceManager &SM) noexcept;
 
   /**
    * @brief Master Safety Check: Is this Symbol Fixed?
@@ -104,7 +105,8 @@ public:
    * @param SM The Source Manager.
    * @return true If the symbol must NOT be changed.
    */
-  bool IsBoundaryFixed(const clang::NamedDecl *D, clang::SourceManager &SM);
+  bool IsBoundaryFixed(const clang::NamedDecl *D,
+                       clang::SourceManager &SM) noexcept;
 
   /**
    * @brief Checks if a record is "packed" (attribute or pragma).
@@ -121,13 +123,13 @@ public:
    */
   void AnalyzeTruncationSafety(const clang::FieldDecl *SourceField,
                                const clang::FunctionDecl *EnclosingFunc,
-                               clang::ASTContext *Ctx);
+                               clang::ASTContext *Ctx) noexcept;
 
   /**
    * @brief Returns fields flagged as unsafe by Truncation Analysis.
    * @return Set of FieldDecls.
    */
-  std::set<const clang::FieldDecl *> GetLikelyUnsafeFields() const;
+  std::set<const clang::FieldDecl *> GetLikelyUnsafeFields() const noexcept;
 
 private:
   bool AllowABIChanges;
@@ -142,9 +144,10 @@ private:
   llvm::DenseMap<clang::FileID, BoundaryStatus> BoundaryCache;
   mutable llvm::StringMap<bool> CMakePathCache;
 
-  BoundaryStatus CheckFileBoundary(clang::FileID FID, clang::SourceManager &SM);
-  bool IsExternalPath(llvm::StringRef Path) const;
-  bool AnalyzeCMakeDependency(llvm::StringRef FileDir) const;
+  BoundaryStatus CheckFileBoundary(clang::FileID FID,
+                                   clang::SourceManager &SM) noexcept;
+  bool IsExternalPath(llvm::StringRef Path) const noexcept;
+  bool AnalyzeCMakeDependency(llvm::StringRef FileDir) const noexcept;
 };
 
 #endif // TYPE_CORRECT_STRUCT_ANALYZER_H

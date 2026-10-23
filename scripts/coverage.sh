@@ -15,6 +15,12 @@ ctest --output-on-failure
 
 find_llvm_tool() {
   local tool="$1"
+  if [[ -f "${BUILD_DIR}/CMakeCache.txt" ]] && grep -q "CMAKE_CXX_COMPILER_ID:INTERNAL=AppleClang" "${BUILD_DIR}/CMakeCache.txt"; then
+    if command -v xcrun >/dev/null 2>&1 && xcrun --find "${tool}" >/dev/null 2>&1; then
+      xcrun --find "${tool}"
+      return 0
+    fi
+  fi
   if command -v "${tool}" >/dev/null 2>&1; then
     command -v "${tool}"
     return 0
@@ -49,7 +55,15 @@ if [[ -z "${LLVM_COV}" ]]; then
   exit 1
 fi
 
-"${LLVM_PROFDATA}" merge -sparse "${PROFRAW_DIR}"/*.profraw -o "${PROFDATA_FILE}"
+"${LLVM_PROFDATA}" merge -sparse "${PROFRAW_DIR}"/*.profraw -o "${PROFDATA_FILE}" 2>/dev/null || {
+  if command -v xcrun >/dev/null 2>&1 && xcrun --find llvm-profdata >/dev/null 2>&1; then
+    LLVM_PROFDATA="$(xcrun --find llvm-profdata)"
+    LLVM_COV="$(xcrun --find llvm-cov)"
+    "${LLVM_PROFDATA}" merge -sparse "${PROFRAW_DIR}"/*.profraw -o "${PROFDATA_FILE}"
+  else
+    exit 1
+  fi
+}
 
 OBJECTS=()
 if [[ -f "${BUILD_DIR}/bin/test_type_correct" ]]; then
@@ -69,14 +83,30 @@ if [[ ${#OBJECTS[@]} -eq 0 ]]; then
   exit 1
 fi
 
+COV_ARGS=("${OBJECTS[0]}")
+for ((i = 1; i < ${#OBJECTS[@]}; i++)); do
+  COV_ARGS+=("-object=${OBJECTS[i]}")
+done
+
 IGNORE_REGEX=".*/(build|_deps|tests)/.*"
 
-"${LLVM_COV}" report "${OBJECTS[@]}" \
+"${LLVM_COV}" report "${COV_ARGS[@]}" \
   -instr-profile="${PROFDATA_FILE}" \
   -ignore-filename-regex="${IGNORE_REGEX}" | tee "${REPORT_FILE}"
 
+FUNCTION_COVERAGE=$(awk '$1 == "TOTAL" {print $(NF-6)}' "${REPORT_FILE}" | tr -d '%')
 LINE_COVERAGE=$(awk '$1 == "TOTAL" {print $(NF-3)}' "${REPORT_FILE}" | tr -d '%')
 BRANCH_COVERAGE=$(awk '$1 == "TOTAL" {print $NF}' "${REPORT_FILE}" | tr -d '%')
+if [[ -z "${FUNCTION_COVERAGE}" ]]; then
+  echo "Failed to parse TOTAL function coverage from ${REPORT_FILE}" >&2
+  exit 1
+fi
+
+if [[ "${FUNCTION_COVERAGE}" != "100.00" && "${FUNCTION_COVERAGE}" != "100" ]]; then
+  echo "Function coverage is ${FUNCTION_COVERAGE}%, expected 100%" >&2
+  exit 1
+fi
+
 if [[ -z "${LINE_COVERAGE}" ]]; then
   echo "Failed to parse TOTAL line coverage from ${REPORT_FILE}" >&2
   exit 1
@@ -97,5 +127,6 @@ if [[ "${BRANCH_COVERAGE}" != "100.00" && "${BRANCH_COVERAGE}" != "100" ]]; then
   exit 1
 fi
 
+echo "Function coverage is 100%"
 echo "Line coverage is 100%"
 echo "Branch coverage is 100%"

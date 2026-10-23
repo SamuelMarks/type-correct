@@ -266,7 +266,7 @@ if (TYPE_CORRECT_ENABLE_COVERAGE)
     add_custom_target(coverage
             COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/scripts/coverage.sh" "${CMAKE_CURRENT_BINARY_DIR}"
             WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
-            DEPENDS type_correct_cli test_type_correct
+            DEPENDS type_correct_cli test_type_correct test_math_type_b4 test_math_type_l8
             USES_TERMINAL
     )
 endif ()

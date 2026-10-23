@@ -50,10 +50,10 @@ void ValueRange::Union(const ValueRange &Other) noexcept {
 // TypeSolver Implementation
 //----------------------------------------------------------------------------- 
 
-TypeSolver::TypeSolver() : TarjanIndexCounter(0) {} 
+TypeSolver::TypeSolver() noexcept : TarjanIndexCounter(0) {} 
 
 void TypeSolver::AddNode(const NamedDecl *Decl, QualType CurrentType, 
-                         bool IsFixed, bool IsTypedef) { 
+                         bool IsFixed, bool IsTypedef) noexcept { 
   if (!Decl) 
     return; 
 
@@ -69,7 +69,7 @@ void TypeSolver::AddNode(const NamedDecl *Decl, QualType CurrentType,
 } 
 
 void TypeSolver::AddGlobalConstraint(const NamedDecl *Decl, 
-                                     QualType GlobalType, ASTContext *Ctx) { 
+                                     QualType GlobalType, ASTContext *Ctx) noexcept { 
   if (!Decl) 
     return; 
 
@@ -84,7 +84,7 @@ void TypeSolver::AddGlobalConstraint(const NamedDecl *Decl,
   } 
 } 
 
-void TypeSolver::AddPointerOffsetUsage(const NamedDecl *Decl) { 
+void TypeSolver::AddPointerOffsetUsage(const NamedDecl *Decl) noexcept { 
   if (!Decl) 
     return; 
 
@@ -94,7 +94,7 @@ void TypeSolver::AddPointerOffsetUsage(const NamedDecl *Decl) {
   } 
 } 
 
-void TypeSolver::AddEdge(const NamedDecl *Target, const NamedDecl *Source) { 
+void TypeSolver::AddEdge(const NamedDecl *Target, const NamedDecl *Source) noexcept { 
   if (!Target || !Source || Target == Source) 
     return; 
 
@@ -109,7 +109,7 @@ void TypeSolver::AddEdge(const NamedDecl *Target, const NamedDecl *Source) {
 } 
 
 void TypeSolver::AddConstraint(const NamedDecl *Decl, QualType Candidate, 
-                               const Expr *BaseExpr, ASTContext *Ctx) { 
+                               const Expr *BaseExpr, ASTContext *Ctx) noexcept { 
   if (!Decl) 
     return; 
 
@@ -125,7 +125,7 @@ void TypeSolver::AddConstraint(const NamedDecl *Decl, QualType Candidate,
 
 void TypeSolver::AddLoopComparisonConstraint(const NamedDecl *InductionVar, 
                                              const Expr *BoundExpr, 
-                                             ASTContext *Ctx) { 
+                                             ASTContext *Ctx) noexcept { 
   if (!InductionVar || !BoundExpr) 
     return; 
 
@@ -136,15 +136,13 @@ void TypeSolver::AddLoopComparisonConstraint(const NamedDecl *InductionVar,
   // Let BoundVar depend on InductionVar so width flows into the bound.
   const Expr *Inner = BoundExpr->IgnoreParenImpCasts(); 
   if (const auto *DR = dyn_cast<DeclRefExpr>(Inner)) { 
-    if (const auto *BoundVar = dyn_cast<NamedDecl>(DR->getDecl())) { 
-      AddEdge(BoundVar, InductionVar); 
-    } 
+    AddEdge(DR->getDecl(), InductionVar); 
   } 
 
   AddConstraint(InductionVar, BoundType, BoundExpr, Ctx); 
 } 
 
-void TypeSolver::AddRangeConstraint(const NamedDecl *Decl, ValueRange Range) { 
+void TypeSolver::AddRangeConstraint(const NamedDecl *Decl, ValueRange Range) noexcept { 
   if (!Decl) 
     return; 
 
@@ -157,22 +155,21 @@ void TypeSolver::AddRangeConstraint(const NamedDecl *Decl, ValueRange Range) {
 
 void TypeSolver::AddSymbolicConstraint(const NamedDecl *Result, OpKind Op, 
                                        const NamedDecl *LHS, 
-                                       const NamedDecl *RHS) { 
+                                       const NamedDecl *RHS) noexcept { 
   if (!Result || !LHS || !RHS) 
     return; 
 
   SymbolicConstraints.push_back(SymbolicConstraint(Result, Op, LHS, RHS)); 
 } 
 
-std::optional<QualType> TypeSolver::HelperGetType(const Expr *E, ASTContext *Ctx) { 
+std::optional<QualType> TypeSolver::HelperGetType(const Expr *E, ASTContext *Ctx) noexcept { 
   if (!E) 
     return std::nullopt; 
 
   const Expr *Clean = E->IgnoreParenImpCasts(); 
 
   if (const auto *DR = dyn_cast<DeclRefExpr>(Clean)) { 
-    if (const auto *V = dyn_cast<ValueDecl>(DR->getDecl())) 
-      return V->getType(); 
+    return DR->getDecl()->getType(); 
   } 
 
   if (const auto *CE = dyn_cast<CallExpr>(Clean)) { 
@@ -198,10 +195,10 @@ std::optional<QualType> TypeSolver::GetResolvedType(const NamedDecl *Decl) const
   if (const auto *V = dyn_cast<ValueDecl>(Decl)) 
     return V->getType(); 
 
-  return std::nullopt;  // LCOV_EXCL_LINE
+  return std::nullopt; 
 } 
 
-QualType TypeSolver::GetWider(QualType A, QualType B, ASTContext *Ctx) { 
+QualType TypeSolver::GetWider(QualType A, QualType B, ASTContext *Ctx) noexcept { 
   if (A.isNull()) 
     return B; 
   if (B.isNull()) 
@@ -234,53 +231,33 @@ QualType TypeSolver::GetWider(QualType A, QualType B, ASTContext *Ctx) {
 
 QualType TypeSolver::GetOptimalTypeForRange(const ValueRange &R, 
                                             QualType Original, 
-                                            ASTContext *Ctx) { 
+                                            ASTContext *Ctx) noexcept { 
   if (!R.Min.has_value() && !R.Max.has_value()) 
     return Original; 
 
   bool NeedsSigned = (R.Min.has_value() && *R.Min < 0); 
 
-  auto GetUint = [&](unsigned Width) { 
-    if (Width == 8) 
-      return Ctx->UnsignedCharTy; 
-    if (Width == 16) 
-      return Ctx->UnsignedShortTy; 
-    if (Width == 32) 
-      return Ctx->UnsignedIntTy; 
-    return Ctx->UnsignedLongLongTy;  // LCOV_EXCL_LINE
-  }; 
-
-  auto GetInt = [&](unsigned Width) { 
-    if (Width == 8) 
-      return Ctx->SignedCharTy; 
-    if (Width == 16) 
-      return Ctx->ShortTy; 
-    if (Width == 32) 
-      return Ctx->IntTy; 
-    return Ctx->LongLongTy;  // LCOV_EXCL_LINE
-  }; 
-
   if (!NeedsSigned) { 
     if (R.Max.has_value()) { 
       if (*R.Max <= std::numeric_limits<uint8_t>::max()) 
-        return GetUint(8); 
+        return Ctx->UnsignedCharTy; 
       if (*R.Max <= std::numeric_limits<uint16_t>::max()) 
-        return GetUint(16); 
+        return Ctx->UnsignedShortTy; 
       if (*R.Max <= std::numeric_limits<uint32_t>::max()) 
-        return GetUint(32); 
+        return Ctx->UnsignedIntTy; 
       return Ctx->getSizeType(); 
     } 
   } else { 
-    int64_t MinVal = R.Min.has_value() ? *R.Min : 0;
+    int64_t MinVal = *R.Min;
     int64_t MaxVal = R.Max.has_value() ? *R.Max : 0;
     int64_t AbsMax = std::max(std::abs(MinVal), std::abs(MaxVal)); 
 
     if (AbsMax <= std::numeric_limits<int8_t>::max()) 
-      return GetInt(8); 
+      return Ctx->SignedCharTy; 
     if (AbsMax <= std::numeric_limits<int16_t>::max()) 
-      return GetInt(16); 
+      return Ctx->ShortTy; 
     if (AbsMax <= std::numeric_limits<int32_t>::max()) 
-      return GetInt(32); 
+      return Ctx->IntTy; 
     return Ctx->LongLongTy; 
   } 
 
@@ -291,7 +268,7 @@ QualType TypeSolver::GetOptimalTypeForRange(const ValueRange &R,
 // SCC Logic (Tarjan's Alg) 
 //----------------------------------------------------------------------------- 
 
-std::map<const NamedDecl *, NodeState> TypeSolver::Solve(ASTContext *Ctx) { 
+std::map<const NamedDecl *, NodeState> TypeSolver::Solve(ASTContext *Ctx) noexcept { 
   TarjanIndexCounter = 0; 
   while (!TarjanStack.empty()) 
     TarjanStack.pop(); 
@@ -305,10 +282,8 @@ std::map<const NamedDecl *, NodeState> TypeSolver::Solve(ASTContext *Ctx) {
   } 
 
   bool Changed = true; 
-  int Iterations = 0; 
-  while (Changed && Iterations < 25) { 
+  while (Changed) { 
     Changed = false; 
-    Iterations++; 
 
     for (const auto &SC : SymbolicConstraints) { 
       NodeState &TargetState = Nodes[SC.Result]; 
@@ -358,7 +333,7 @@ std::map<const NamedDecl *, NodeState> TypeSolver::Solve(ASTContext *Ctx) {
   return Updates; 
 } 
 
-void TypeSolver::StrongConnect(const NamedDecl *V, ASTContext *Ctx) { 
+void TypeSolver::StrongConnect(const NamedDecl *V, ASTContext *Ctx) noexcept { 
   TarjanData &VData = TarjanState[V]; 
   VData.Index = TarjanIndexCounter; 
   VData.LowLink = TarjanIndexCounter; 
@@ -394,15 +369,11 @@ void TypeSolver::StrongConnect(const NamedDecl *V, ASTContext *Ctx) {
 } 
 
 void TypeSolver::ProcessSCC(const std::vector<const NamedDecl *> &SCC, 
-                            ASTContext *Ctx) { 
-  QualType UnifiedType; 
+                            ASTContext *Ctx) noexcept { 
+  QualType UnifiedType = Nodes[SCC[0]].ConstraintType; 
   ValueRange UnifiedRange; 
   bool IsFixed = false; 
   bool IsPtrOffset = false; 
-
-  if (!SCC.empty()) { 
-    UnifiedType = Nodes[SCC[0]].ConstraintType; 
-  } 
 
   for (const NamedDecl *Member : SCC) { 
     NodeState &St = Nodes[Member]; 

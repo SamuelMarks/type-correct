@@ -20,11 +20,10 @@
 #include <clang/AST/Type.h>
 #include <cstdint>
 #include <map>
+#include <optional>
 #include <set>
 #include <stack>
 #include <vector>
-
-#include <optional>
 
 namespace type_correct {
 
@@ -36,14 +35,28 @@ struct TYPE_CORRECT_EXPORT ValueRange {
   std::optional<int64_t> Min; ///< Minimum observed value.
   std::optional<int64_t> Max; ///< Maximum observed value.
 
-  /// @brief Construct an empty range with no bounds.
+  /**
+   * @brief Construct an empty range with no bounds.
+   */
   ValueRange() noexcept = default;
-  /// @brief Construct a fixed range [Val, Val].
+
+  /**
+   * @brief Construct a fixed range [Val, Val].
+   * @param Val The single bound value for both Min and Max.
+   */
   ValueRange(int64_t Val) noexcept : Min(Val), Max(Val) {}
-  /// @brief Construct a fixed range [Least, Most].
+
+  /**
+   * @brief Construct a fixed range [Least, Most].
+   * @param Least Minimum bound value.
+   * @param Most Maximum bound value.
+   */
   ValueRange(int64_t Least, int64_t Most) noexcept : Min(Least), Max(Most) {}
 
-  /// @brief Expand this range by unioning with another range.
+  /**
+   * @brief Expand this range by unioning with another range.
+   * @param Other The other ValueRange to merge into this range.
+   */
   void Union(const ValueRange &Other) noexcept;
 };
 
@@ -69,9 +82,16 @@ struct SymbolicConstraint {
   const clang::NamedDecl *LHS;    ///< Left-hand operand.
   const clang::NamedDecl *RHS;    ///< Right-hand operand.
 
-  /// @brief Construct a symbolic constraint.
+  /**
+   * @brief Construct a symbolic constraint.
+   * @param Res Result symbol declaration.
+   * @param O Operation kind applied.
+   * @param L Left-hand operand declaration.
+   * @param R Right-hand operand declaration.
+   */
   SymbolicConstraint(const clang::NamedDecl *Res, OpKind O,
-                     const clang::NamedDecl *L, const clang::NamedDecl *R)
+                     const clang::NamedDecl *L,
+                     const clang::NamedDecl *R) noexcept
       : Result(Res), Op(O), LHS(L), RHS(R) {}
 };
 
@@ -90,14 +110,22 @@ struct NodeState {
   bool IsTypedef;                 ///< Whether this is a typedef symbol.
   const clang::Expr *BaseExpr;    ///< Base expression for constraints.
 
-  /// @brief Construct an empty node state.
-  NodeState()
+  /**
+   * @brief Construct an empty node state.
+   */
+  NodeState() noexcept
       : Decl(nullptr), IsFixed(false), HasGlobalConstraint(false),
         IsPtrOffset(false), IsTypedef(false), BaseExpr(nullptr) {}
 
-  /// @brief Construct a node state for a declaration.
+  /**
+   * @brief Construct a node state for a declaration.
+   * @param D Declaration being solved.
+   * @param T Initial AST type of the declaration.
+   * @param Locked Whether the declaration type is fixed.
+   * @param Typedef Whether the declaration is a typedef.
+   */
   NodeState(const clang::NamedDecl *D, clang::QualType T, bool Locked = false,
-            bool Typedef = false)
+            bool Typedef = false) noexcept
       : Decl(D), OriginalType(T), ConstraintType(T), IsFixed(Locked),
         HasGlobalConstraint(false), IsPtrOffset(false), IsTypedef(Typedef),
         BaseExpr(nullptr) {}
@@ -112,8 +140,10 @@ struct TarjanData {
   int LowLink;  ///< Lowest reachable index.
   bool OnStack; ///< Whether the node is in the stack.
 
-  /// @brief Construct a default Tarjan state.
-  TarjanData() : Index(-1), LowLink(-1), OnStack(false) {}
+  /**
+   * @brief Construct a default Tarjan state.
+   */
+  TarjanData() noexcept : Index(-1), LowLink(-1), OnStack(false) {}
 };
 
 /**
@@ -122,8 +152,10 @@ struct TarjanData {
  */
 class TYPE_CORRECT_EXPORT TypeSolver {
 public:
-  /// @brief Construct an empty solver.
-  TypeSolver();
+  /**
+   * @brief Construct an empty solver.
+   */
+  TypeSolver() noexcept;
 
   /**
    * @brief Register a declaration in the solver graph.
@@ -133,7 +165,7 @@ public:
    * @param IsTypedef Whether the symbol is a typedef.
    */
   void AddNode(const clang::NamedDecl *Decl, clang::QualType CurrentType,
-               bool IsFixed, bool IsTypedef = false);
+               bool IsFixed, bool IsTypedef = false) noexcept;
 
   /**
    * @brief Add a global constraint derived from CTU facts.
@@ -142,22 +174,27 @@ public:
    * @param Ctx AST context for type manipulation.
    */
   void AddGlobalConstraint(const clang::NamedDecl *Decl,
-                           clang::QualType GlobalType, clang::ASTContext *Ctx);
+                           clang::QualType GlobalType,
+                           clang::ASTContext *Ctx) noexcept;
 
   /**
    * @brief Mark a declaration as used in pointer arithmetic.
    * @param Decl Declaration to mark.
    */
-  void AddPointerOffsetUsage(const clang::NamedDecl *Decl);
+  void AddPointerOffsetUsage(const clang::NamedDecl *Decl) noexcept;
 
   /**
-   * AddEdge(Target, Source):
+   * @brief Add a directed dependency edge between two declarations.
    *
    * "Target depends on Source" in the sense that Source's required width
    * should flow into Target. So, if usage constraints land on Source, they
    * should propagate along outgoing edges to Targets.
+   *
+   * @param Target Target declaration receiving the propagated constraint.
+   * @param Source Source declaration from which constraint width flows.
    */
-  void AddEdge(const clang::NamedDecl *Target, const clang::NamedDecl *Source);
+  void AddEdge(const clang::NamedDecl *Target,
+               const clang::NamedDecl *Source) noexcept;
 
   /**
    * @brief Add a usage constraint for a declaration.
@@ -167,7 +204,8 @@ public:
    * @param Ctx AST context for type manipulation.
    */
   void AddConstraint(const clang::NamedDecl *Decl, clang::QualType Candidate,
-                     const clang::Expr *BaseExpr, clang::ASTContext *Ctx);
+                     const clang::Expr *BaseExpr,
+                     clang::ASTContext *Ctx) noexcept;
 
   /**
    * @brief Add a loop comparison constraint for an induction variable.
@@ -177,14 +215,15 @@ public:
    */
   void AddLoopComparisonConstraint(const clang::NamedDecl *InductionVar,
                                    const clang::Expr *BoundExpr,
-                                   clang::ASTContext *Ctx);
+                                   clang::ASTContext *Ctx) noexcept;
 
   /**
    * @brief Add a numeric range constraint.
    * @param Decl Declaration to constrain.
    * @param Range Observed range.
    */
-  void AddRangeConstraint(const clang::NamedDecl *Decl, ValueRange Range);
+  void AddRangeConstraint(const clang::NamedDecl *Decl,
+                          ValueRange Range) noexcept;
 
   /**
    * @brief Add a symbolic relationship between declarations.
@@ -195,14 +234,15 @@ public:
    */
   void AddSymbolicConstraint(const clang::NamedDecl *Result, OpKind Op,
                              const clang::NamedDecl *LHS,
-                             const clang::NamedDecl *RHS);
+                             const clang::NamedDecl *RHS) noexcept;
 
   /**
    * @brief Solve all constraints and return updated states.
    * @param Ctx AST context for type resolution.
    * @return Map of declarations to solved node state.
    */
-  std::map<const clang::NamedDecl *, NodeState> Solve(clang::ASTContext *Ctx);
+  std::map<const clang::NamedDecl *, NodeState>
+  Solve(clang::ASTContext *Ctx) noexcept;
 
   /**
    * @brief Get the resolved type for a declaration.
@@ -222,17 +262,18 @@ private:
   std::stack<const clang::NamedDecl *> TarjanStack;
   std::map<const clang::NamedDecl *, TarjanData> TarjanState;
 
-  void StrongConnect(const clang::NamedDecl *V, clang::ASTContext *Ctx);
+  void StrongConnect(const clang::NamedDecl *V,
+                     clang::ASTContext *Ctx) noexcept;
   void ProcessSCC(const std::vector<const clang::NamedDecl *> &SCC,
-                  clang::ASTContext *Ctx);
+                  clang::ASTContext *Ctx) noexcept;
 
   clang::QualType GetWider(clang::QualType A, clang::QualType B,
-                           clang::ASTContext *Ctx);
+                           clang::ASTContext *Ctx) noexcept;
   clang::QualType GetOptimalTypeForRange(const ValueRange &R,
                                          clang::QualType Original,
-                                         clang::ASTContext *Ctx);
-  std::optional<clang::QualType> HelperGetType(const clang::Expr *E,
-                                               clang::ASTContext *Ctx);
+                                         clang::ASTContext *Ctx) noexcept;
+  std::optional<clang::QualType>
+  HelperGetType(const clang::Expr *E, clang::ASTContext *Ctx) noexcept;
 };
 
 } // namespace type_correct
